@@ -1,3 +1,6 @@
+-- This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
+-- If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 -- Déclare la table principale de l'addon
 MapMate = MapMate or {}
 MapMateUI = MapMateUI or {}
@@ -9,6 +12,14 @@ local guildMembers = {} -- Table pour stocker les informations des membres de la
 -- Chargement de la bibliothèque HereBeDragons
 local HBD = LibStub("HereBeDragons-2.0")
 local HBDPins = LibStub("HereBeDragons-Pins-2.0")
+
+if not IsAddOnLoaded("Blizzard_DebugTools") then
+    LoadAddOn("Blizzard_DebugTools") -- Assurez-vous que la bibliothèque est chargée
+end
+if not EasyMenu then
+    print("Chargement de UIDropDownMenu...")
+    LoadAddOn("Blizzard_UIDropDownMenu") -- Charge UIDropDownMenu si nécessaire
+end
 
 -- Intervalle de mise à jour
 local updateInterval = 2 -- En secondes
@@ -71,6 +82,89 @@ local function GetPlayerGuildRankIndex()
 
     return nil -- Si le joueur n'est pas trouvé
 end
+
+local function ShowCustomContextMenu(pin, playerName)
+    -- Crée le frame pour le menu contextuel
+    local menuFrame = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+    menuFrame:SetSize(125, 80) -- Taille du menu
+    menuFrame:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        edgeSize = 5,
+    })
+    menuFrame:SetBackdropColor(0, 0, 0, 1)
+
+    -- Positionne le menu au centre de la souris
+    local x, y = GetCursorPosition()
+    local uiScale = UIParent:GetEffectiveScale()
+    menuFrame:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x / uiScale, y / uiScale)
+
+    menuFrame:SetFrameStrata("DIALOG")
+    menuFrame:SetFrameLevel(99)
+    menuFrame:Show()
+
+    -- Crée un bouton pour inviter
+    local inviteButton = CreateFrame("Button", nil, menuFrame, "UIPanelButtonTemplate")
+    inviteButton:SetSize(120, 20)
+    inviteButton:SetPoint("TOP", menuFrame, "TOP", 0, -5)
+    inviteButton:SetText("Inviter")
+    inviteButton:SetScript("OnClick", function()
+        InviteUnit(playerName)
+        menuFrame:Hide()
+    end)
+
+    -- Crée un bouton pour chuchoter
+    local whisperButton = CreateFrame("Button", nil, menuFrame, "UIPanelButtonTemplate")
+    whisperButton:SetSize(120, 20)
+    whisperButton:SetPoint("TOP", inviteButton, "BOTTOM", 0, -5)
+    whisperButton:SetText("Chuchoter")
+    whisperButton:SetScript("OnClick", function()
+        ChatFrame_SendTell(playerName)
+        menuFrame:Hide()
+    end)
+
+    -- Crée un bouton pour fermer
+    local closeButton = CreateFrame("Button", nil, menuFrame, "UIPanelButtonTemplate")
+    closeButton:SetSize(120, 20)
+    closeButton:SetPoint("TOP", whisperButton, "BOTTOM", 0, -5)
+    closeButton:SetText("Fermer")
+    closeButton:SetScript("OnClick", function()
+        menuFrame:Hide()
+    end)
+
+    -- Ajoute un comportement de fermeture automatique si la souris quitte le menu
+    menuFrame:SetScript("OnLeave", function()
+        -- Vérifie si la souris est encore dans un enfant du menu
+        C_Timer.After(0.1, function()
+            if not menuFrame:IsMouseOver() then
+                menuFrame:Hide()
+            end
+        end)
+    end)
+
+    -- Empêche le menu de disparaître si la souris passe sur un bouton
+    local function PreventClose(button)
+        button:SetScript("OnEnter", function()
+            menuFrame:SetScript("OnLeave", function()
+                -- Ne ferme pas tant que la souris est sur un bouton
+            end)
+        end)
+        button:SetScript("OnLeave", function()
+            menuFrame:SetScript("OnLeave", function()
+                C_Timer.After(0.1, function()
+                    if not menuFrame:IsMouseOver() then
+                        menuFrame:Hide()
+                    end
+                end)
+            end)
+        end)
+    end
+
+    PreventClose(inviteButton)
+    PreventClose(whisperButton)
+    PreventClose(closeButton)
+end
+
 
 -- Fonction pour initialiser le rang
 local function InitializePlayerRank()
@@ -189,7 +283,7 @@ local function OnAddonMessage(prefix, text, channel, sender)
                 icon = icon,
             }
 
-            MapMate:CreateGuildMemberPin(name, icon, rank, level)
+            MapMate:CreateGuildMemberPin(name, icon, rank, level, class)
         end
     end
 end
@@ -209,12 +303,12 @@ frame:SetScript("OnEvent", function(self, event, ...)
 end)
 
 -- Fonction pour créer ou mettre à jour un pin pour un membre de la guilde
-function MapMate:CreateGuildMemberPin(memberName, icon, rank, targetLevel)
+function MapMate:CreateGuildMemberPin(memberName, icon, rank, targetLevel, class)
     local member = guildMembers[memberName]
     if not member then return end
 
     MapMate:RemovePinsByTitle(memberName, icon)
-    self:AddWaypoint(member.mapID, member.x, member.y, memberName, icon, rank, targetLevel)
+    self:AddWaypoint(member.mapID, member.x, member.y, memberName, icon, rank, targetLevel, class)
 end
 
 -- Fonction pour rafraîchir les pins dynamiquement
@@ -247,8 +341,31 @@ updateFrame:SetScript("OnUpdate", function(self, elapsed)
     end
 end)
 
+-- Fonction pour obtenir les couleurs RGB des classes
+function GetClassColorRGB(className)
+    local classColors = {
+        WARRIOR = {1, 0.78, 0.55}, -- Marron clair
+        PALADIN = {0.96, 0.55, 0.73}, -- Rose clair
+        HUNTER = {0.67, 0.83, 0.45}, -- Vert clair
+        ROGUE = {1, 0.96, 0.41}, -- Jaune
+        PRIEST = {1, 1, 1}, -- Blanc
+        DEATHKNIGHT = {0.77, 0.12, 0.23}, -- Rouge foncé
+        SHAMAN = {0, 0.44, 0.87}, -- Bleu
+        MAGE = {0.25, 0.78, 0.92}, -- Bleu clair
+        WARLOCK = {0.53, 0.53, 0.93}, -- Violet
+        MONK = {0, 1, 0.59}, -- Vert jade
+        DRUID = {1, 0.49, 0.04}, -- Orange
+        DEMONHUNTER = {0.64, 0.19, 0.79}, -- Violet sombre
+        EVOKER = {0.2, 0.58, 0.5} -- Vert émeraude
+    }
+
+    -- Récupère les couleurs RGB pour la classe donnée (ou blanc par défaut)
+    local color = classColors[className:upper()] or {1, 1, 1}
+    return unpack(color) -- Retourne les trois valeurs RGB séparées
+end
+
 -- Fonction pour créer deux pins (carte et mini-carte)
-function MapMate:CreateMapPin(waypoint, icon, rank, targetLevel)
+function MapMate:CreateMapPin(waypoint, icon, rank, targetLevel, className)
 
     local size = MapMateDB.iconSize
     local displayRank = MapMateDB.showRanks
@@ -275,6 +392,13 @@ function MapMate:CreateMapPin(waypoint, icon, rank, targetLevel)
     worldTexture:SetTexture(icon)
     worldPin.texture = worldTexture
 
+    -- Ajoute un événement clic droit au pin de la carte mondiale
+    worldPin:SetScript("OnMouseUp", function(_, button)
+        if button == "RightButton" then
+            ShowCustomContextMenu(worldPin, waypoint.title)
+        end
+    end)
+
     -- Ajouter le niveau en dessous de la pin
     if displayLevel then
         local levelText = worldPin:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -287,11 +411,11 @@ function MapMate:CreateMapPin(waypoint, icon, rank, targetLevel)
     -- Applique les icônes de rang (optionnel)
     if displayRank then
         local overlayTexture = worldPin:CreateTexture(nil, "OVERLAY")
-        overlayTexture:SetPoint("CENTER", worldPin, "CENTER", 0, 1)
-        overlayTexture:SetSize(36 * size, 36 * size)
+        overlayTexture:SetPoint("CENTER", worldPin, "CENTER", -0.8, -1)
+        overlayTexture:SetSize(34 * size, 34 * size)
 
         if rank == "0" then
-            overlayTexture:SetTexture("Interface\\AddOns\\MapMate\\Textures\\GM")
+            overlayTexture:SetTexture("Interface\\AddOns\\MapMate\\Textures\\GM4")
         elseif rank == "1" then
             overlayTexture:SetTexture("Interface\\AddOns\\MapMate\\Textures\\Officier")
         elseif rank == "2" then
@@ -317,7 +441,7 @@ function MapMate:CreateMapPin(waypoint, icon, rank, targetLevel)
             local overlayTexture = minimapPin:CreateTexture(nil, "OVERLAY")
             overlayTexture:SetPoint("CENTER", minimapPin, "CENTER", -1.3, -0.5)
             overlayTexture:SetSize(20*size,20*size)
-            overlayTexture:SetTexture("Interface\\AddOns\\MapMate\\Textures\\GM")
+            overlayTexture:SetTexture("Interface\\AddOns\\MapMate\\Textures\\GM4")
         elseif(rank == "1") then
             local overlayTexture = minimapPin:CreateTexture(nil, "OVERLAY")
             overlayTexture:SetPoint("CENTER", minimapPin, "CENTER", -1.3, -0.5)
@@ -345,11 +469,13 @@ function MapMate:CreateMapPin(waypoint, icon, rank, targetLevel)
         title = waypoint.title
     }
 
+    local r, g, b = GetClassColorRGB(className)
+
     -- Ajoute un tooltip au pin de la carte mondiale
     worldPin:SetScript("OnEnter", function()
         GameTooltip:SetOwner(worldPin, "ANCHOR_RIGHT")
-        GameTooltip:SetText(waypoint.title)
-        GameTooltip:AddLine(tostring(targetLevel))
+        GameTooltip:ClearLines() -- Nettoie les lignes précédentes
+        GameTooltip:AddLine(waypoint.title, r, g, b)
         GameTooltip:Show()
     end)
     worldPin:SetScript("OnLeave", function()
@@ -359,8 +485,8 @@ function MapMate:CreateMapPin(waypoint, icon, rank, targetLevel)
     -- Ajoute un tooltip au pin de la mini-carte
     minimapPin:SetScript("OnEnter", function()
         GameTooltip:SetOwner(minimapPin, "ANCHOR_RIGHT")
-        GameTooltip:SetText(waypoint.title)
-        GameTooltip:AddLine(tostring(targetLevel))
+        GameTooltip:ClearLines() -- Nettoie les lignes précédentes
+        GameTooltip:AddLine(waypoint.title, r, g, b)
         GameTooltip:Show()
     end)
     minimapPin:SetScript("OnLeave", function()
@@ -368,9 +494,8 @@ function MapMate:CreateMapPin(waypoint, icon, rank, targetLevel)
     end)
 end
 
-
 -- Fonction pour ajouter un waypoint
-function MapMate:AddWaypoint(mapID, x, y, title, icon, rank, targetLevel)
+function MapMate:AddWaypoint(mapID, x, y, title, icon, rank, targetLevel, class)
     local waypoint = {
         mapID = mapID,
         x = x,
@@ -379,7 +504,7 @@ function MapMate:AddWaypoint(mapID, x, y, title, icon, rank, targetLevel)
     }
     table.insert(waypoints, waypoint)
     -- Ajout du pin via HereBeDragons
-    self:CreateMapPin(waypoint, icon, rank, targetLevel)
+    self:CreateMapPin(waypoint, icon, rank, targetLevel, class)
 end
 
 -- Fonction pour supprimer tous les waypoints
@@ -442,8 +567,6 @@ local function UpdateGuildRoster()
         if wasOnline and not currentRoster[name] then
             print("Déconnexion détectée : " .. name)
             MapMate:RemovePinsByTitle(Ambiguate(name, "short"))
-            -- Exemple : Supprimer une pin
-            -- MapMate:RemovePinsByTitle(name)
         end
     end
 
@@ -462,7 +585,3 @@ end)
 
 -- Initialisation au chargement de l'addon
 GuildRoster()
-
-
-
-
