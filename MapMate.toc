@@ -3,6 +3,7 @@
 ## Author: Devetik
 ## Notes: Addon permettant de voir les membres de la guilde sur la map
 ## SavedVariables: MapMateDB
+## Notes: Localization for MapMate addon.
 ## Version: 1.0
 
 # Librairies
@@ -13,5 +14,10 @@ libs/HereBeDragons/HereBeDragons-2.0.lua
 libs/HereBeDragons/HereBeDragons-Pins-2.0.lua
 libs/HereBeDragons/HereBeDragons-Migrate.lua
 
+Localization/localization.lua
 MapMateUI.lua
 MapMate.lua
+
+# Localization Files
+
+
