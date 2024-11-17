@@ -585,7 +585,3 @@ end)
 
 -- Initialisation au chargement de l'addon
 GuildRoster()
-
-print("Detection de langue")
-print(MapMate_Localize("Welcome to MapMate!"))
-print("Detection de langue FIN")

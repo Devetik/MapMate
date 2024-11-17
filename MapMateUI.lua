@@ -117,7 +117,7 @@ function MapMateUI:ShowConfigWindow()
     end
 
     configFrame = AceGUI:Create("Frame")
-    configFrame:SetTitle(MapMate_Localize("Paramètres MapMate"))
+    configFrame:SetTitle(MapMate_Localize("MapMate Parameter"))
     configFrame:SetStatusText(MapMate_Localize("Edit Parameters"))
     configFrame:SetCallback("OnClose", function(widget)
         AceGUI:Release(widget)
