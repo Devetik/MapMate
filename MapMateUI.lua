@@ -5,6 +5,14 @@ local MapMateUI = {}
 _G["MapMateUI"] = MapMateUI
 local AceGUI = LibStub("AceGUI-3.0")
 
+if not AceGUI then
+    print("AceGUI is not loaded.")
+else
+    print("AceGUI is loaded successfully.")
+end
+
+print("ConfigFrame:", configFrame)
+
 if not MapMateDB then
     MapMateDB = {}
 end
@@ -15,6 +23,7 @@ local defaults = {
     iconSize = 1.0,
     lockIcon = false,
     displayLevel = true,
+    simpleDots = false,
     minimap = { x = 0, y = 0, hide = false }
 }
 
@@ -135,6 +144,14 @@ function MapMateUI:ShowConfigWindow()
         MapMateDB.showRanks = value
     end)
     configFrame:AddChild(showRanksCheckbox)
+
+    local simpleDots = AceGUI:Create("CheckBox")
+    simpleDots:SetLabel(MapMate_Localize("Simple Dots"))
+    simpleDots:SetValue(MapMateDB.simpleDots)
+    simpleDots:SetCallback("OnValueChanged", function(_, _, value)
+        MapMateDB.simpleDots = value
+    end)
+    configFrame:AddChild(simpleDots)
 
     local displayLevel = AceGUI:Create("CheckBox")
     displayLevel:SetLabel(MapMate_Localize("Show Guild Member Level"))

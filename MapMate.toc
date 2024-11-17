@@ -4,10 +4,17 @@
 ## Notes: Addon permettant de voir les membres de la guilde sur la map
 ## SavedVariables: MapMateDB
 ## Notes: Localization for MapMate addon.
-## Version: 1.0
+## Version: 1.1
 
 # Librairies
+libs/LibStub/LibStub.lua
+libs/Ace3/AceDB-3.0/AceDB-3.0.lua
 libs/Ace3/AceGUI-3.0/AceGUI-3.0.lua
+libs/Ace3/AceGUI-3.0/widgets/AceGUIWidget-Button.lua
+libs/Ace3/AceGUI-3.0/widgets/AceGUIWidget-CheckBox.lua
+libs/Ace3/AceGUI-3.0/widgets/AceGUIWidget-DropDown.lua
+libs/Ace3/AceGUI-3.0/widgets/AceGUIWidget-Slider.lua
+libs/Ace3/AceGUI-3.0/widgets/AceGUIContainer-Frame.lua
 libs/HereBeDragons/LibStub/LibStub.lua
 libs/HereBeDragons/CallbackHandler-1.0/CallbackHandler-1.0.lua
 libs/HereBeDragons/HereBeDragons-2.0.lua

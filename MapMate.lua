@@ -29,32 +29,32 @@ local maxTimeBetweenUpdate = 3 -- En secondes
 local lastSentPosition = { x = nil, y = nil, mapID = nil } -- Dernière position envoyée
 
 function MapMate:GetClassIcon()
-    local _, class = UnitClass("player")
-    if class == "DRUID" then
+    local _, classFileName = UnitClass("player")
+    if classFileName == "DRUID" then
         return "Interface\\AddOns\\MapMate\\Textures\\DRUID"
 
-    elseif class == "HUNTER" then
+    elseif classFileName == "HUNTER" then
         return "Interface\\AddOns\\MapMate\\Textures\\HUNTER"
         
-    elseif class == "MAGE" then 
+    elseif classFileName == "MAGE" then 
         return "Interface\\AddOns\\MapMate\\Textures\\MAGE"
 
-    elseif class == "PALADIN" then
+    elseif classFileName == "PALADIN" then
         return "Interface\\AddOns\\MapMate\\Textures\\PALADIN"
 
-    elseif class == "PRIEST" then
+    elseif classFileName == "PRIEST" then
         return "Interface\\AddOns\\MapMate\\Textures\\PRIEST"
 
-    elseif class == "ROGUE" then
+    elseif classFileName == "ROGUE" then
         return "Interface\\AddOns\\MapMate\\Textures\\ROGUE"
 
-    elseif class == "SHAMAN" then
+    elseif classFileName == "SHAMAN" then
         return "Interface\\AddOns\\MapMate\\Textures\\SHAMAN"
 
-    elseif class == "WARLOCK" then
+    elseif classFileName == "WARLOCK" then
         return "Interface\\AddOns\\MapMate\\Textures\\WARLOCK"
 
-    elseif class == "WARRIOR" then
+    elseif classFileName == "WARRIOR" then
         return "Interface\\AddOns\\MapMate\\Textures\\WARRIOR"
     end
 end
@@ -244,7 +244,8 @@ function MapMate:SendGuildPosition()
                     playerRank = GetPlayerGuildRankIndex()
                     local name = UnitName("player")
                     local level = UnitLevel("player")
-                    local class = UnitClass("player")
+                    local _, classFileName = UnitClass("player")
+                    local class = classFileName
                     local icon = selectedTexture
                     local message = string.format("%s,%s,%d,%s,%.3f,%.3f,%d,%s", name, playerRank, level, class, x, y, mapID, icon)
                     C_ChatInfo.SendAddonMessage(ADDON_PREFIX, message, "GUILD")
@@ -370,6 +371,7 @@ function MapMate:CreateMapPin(waypoint, icon, rank, targetLevel, className)
     local size = MapMateDB.iconSize
     local displayRank = MapMateDB.showRanks
     local displayLevel = MapMateDB.displayLevel
+    local displaySimpleDots = MapMateDB.simpleDots
 
     -- Supprime les anciens pins s'ils existent
     if pins[waypoint] then
@@ -389,7 +391,11 @@ function MapMate:CreateMapPin(waypoint, icon, rank, targetLevel, className)
     local worldTexture = worldPin:CreateTexture(nil, "BACKGROUND")
     worldTexture:SetAllPoints()
     worldTexture:SetSize(16 * size, 16 * size)
-    worldTexture:SetTexture(icon)
+    if displaySimpleDots then
+        worldTexture:SetTexture("Interface\\AddOns\\MapMate\\Textures\\Pin")
+    else
+        worldTexture:SetTexture(icon)
+    end
     worldPin.texture = worldTexture
 
     -- Ajoute un événement clic droit au pin de la carte mondiale
