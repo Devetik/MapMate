@@ -11,6 +11,7 @@ local defaults = {
     showRanks = true,
     iconSize = 1.0,
     lockIcon = false,
+    displayLevel = true,
     minimap = { x = 0, y = 0, hide = false }
 }
 
@@ -132,6 +133,14 @@ function MapMateUI:ShowConfigWindow()
         MapMateDB.showRanks = value
     end)
     configFrame:AddChild(showRanksCheckbox)
+
+    local displayLevel = AceGUI:Create("CheckBox")
+    displayLevel:SetLabel("Affiche le niveau des joueurs")
+    displayLevel:SetValue(MapMateDB.displayLevel)
+    displayLevel:SetCallback("OnValueChanged", function(_, _, value)
+        MapMateDB.displayLevel = value
+    end)
+    configFrame:AddChild(displayLevel)
 
     local lockButton = AceGUI:Create("CheckBox")
     lockButton:SetLabel("Lock l'icône")

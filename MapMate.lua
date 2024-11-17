@@ -189,7 +189,7 @@ local function OnAddonMessage(prefix, text, channel, sender)
                 icon = icon,
             }
 
-            MapMate:CreateGuildMemberPin(name, icon, rank)
+            MapMate:CreateGuildMemberPin(name, icon, rank, level)
         end
     end
 end
@@ -209,12 +209,12 @@ frame:SetScript("OnEvent", function(self, event, ...)
 end)
 
 -- Fonction pour créer ou mettre à jour un pin pour un membre de la guilde
-function MapMate:CreateGuildMemberPin(memberName, icon, rank)
+function MapMate:CreateGuildMemberPin(memberName, icon, rank, targetLevel)
     local member = guildMembers[memberName]
     if not member then return end
 
     MapMate:RemovePinsByTitle(memberName, icon)
-    self:AddWaypoint(member.mapID, member.x, member.y, memberName, icon, rank)
+    self:AddWaypoint(member.mapID, member.x, member.y, memberName, icon, rank, targetLevel)
 end
 
 -- Fonction pour rafraîchir les pins dynamiquement
@@ -248,10 +248,12 @@ updateFrame:SetScript("OnUpdate", function(self, elapsed)
 end)
 
 -- Fonction pour créer deux pins (carte et mini-carte)
-function MapMate:CreateMapPin(waypoint, icon, rank)
+function MapMate:CreateMapPin(waypoint, icon, rank, targetLevel)
 
     local size = MapMateDB.iconSize
     local displayRank = MapMateDB.showRanks
+    local displayLevel = MapMateDB.displayLevel
+
     -- Supprime les anciens pins s'ils existent
     if pins[waypoint] then
         if pins[waypoint].world then
@@ -265,48 +267,51 @@ function MapMate:CreateMapPin(waypoint, icon, rank)
 
     -- Crée un pin pour la carte mondiale
     local worldPin = CreateFrame("Frame", nil, UIParent)
-    worldPin:SetSize(18*size, 18*size)
+    worldPin:SetSize(18 * size, 18 * size)
 
     local worldTexture = worldPin:CreateTexture(nil, "BACKGROUND")
     worldTexture:SetAllPoints()
-    worldTexture:SetSize(16*size,16*size)
+    worldTexture:SetSize(16 * size, 16 * size)
     worldTexture:SetTexture(icon)
     worldPin.texture = worldTexture
+
+    -- Ajouter le niveau en dessous de la pin
+    if displayLevel then
+        local levelText = worldPin:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        levelText:SetPoint("TOP", worldPin, "TOP", 0, 10*size) -- Position sous la pin
+        levelText:SetText(tostring(targetLevel)) -- Affiche le niveau ou "?" si inconnu
+        --levelText:SetTextColor(0, 0, 0)
+        levelText:SetFont("Fonts\\FRIZQT__.TTF", 10*size, "OUTLINE")
+    end
+
+    -- Applique les icônes de rang (optionnel)
     if displayRank then
-        if(rank == "0") then
-            local overlayTexture = worldPin:CreateTexture(nil, "OVERLAY")
-            overlayTexture:SetPoint("CENTER", worldPin, "CENTER", 0, 1)
-            overlayTexture:SetSize(36*size,36*size)
+        local overlayTexture = worldPin:CreateTexture(nil, "OVERLAY")
+        overlayTexture:SetPoint("CENTER", worldPin, "CENTER", 0, 1)
+        overlayTexture:SetSize(36 * size, 36 * size)
+
+        if rank == "0" then
             overlayTexture:SetTexture("Interface\\AddOns\\MapMate\\Textures\\GM")
-        
-        elseif(rank == "1") then
-            local overlayTexture = worldPin:CreateTexture(nil, "OVERLAY")
-            overlayTexture:SetPoint("CENTER", worldPin, "CENTER", -1.3, -0.5)
-            overlayTexture:SetSize(36*size,36*size)
+        elseif rank == "1" then
             overlayTexture:SetTexture("Interface\\AddOns\\MapMate\\Textures\\Officier")
-        elseif(rank == "2") then
-            local overlayTexture = worldPin:CreateTexture(nil, "OVERLAY")
-            overlayTexture:SetPoint("CENTER", worldPin, "CENTER", -1.3, -0.5)
-            overlayTexture:SetSize(36*size,36*size)
+        elseif rank == "2" then
             overlayTexture:SetTexture("Interface\\AddOns\\MapMate\\Textures\\Veteran2")
-        elseif(rank == "3") then
-            local overlayTexture = worldPin:CreateTexture(nil, "OVERLAY")
-            overlayTexture:SetPoint("CENTER", worldPin, "CENTER", -1.3, -0.5)
-            overlayTexture:SetSize(36*size,36*size)
+        elseif rank == "3" then
             overlayTexture:SetTexture("Interface\\AddOns\\MapMate\\Textures\\Member2")
         end
     end
 
-    local worldAdded = HBDPins:AddWorldMapIconMap("MapMate", worldPin, waypoint.mapID, waypoint.x, waypoint.y, HBD_PINS_WORLDMAP_SHOW_WORLD) -- HBD_PINS_WORLDMAP_SHOW_PARENT si uniquement locale
+    local worldAdded = HBDPins:AddWorldMapIconMap("MapMate", worldPin, waypoint.mapID, waypoint.x, waypoint.y, HBD_PINS_WORLDMAP_SHOW_WORLD)
 
     -- Crée un pin pour la mini-carte
     local minimapPin = CreateFrame("Frame", nil, UIParent)
-    minimapPin:SetSize(12*size, 12*size)
+    minimapPin:SetSize(12 * size, 12 * size)
 
     local minimapTexture = minimapPin:CreateTexture(nil, "BACKGROUND")
     minimapTexture:SetAllPoints()
-    minimapTexture:SetTexture(icon) -- Chemin vers une icône personnalisée
+    minimapTexture:SetTexture(icon)
     minimapPin.texture = minimapTexture
+
     if displayRank then
         if(rank == "0") then
             local overlayTexture = minimapPin:CreateTexture(nil, "OVERLAY")
@@ -344,6 +349,7 @@ function MapMate:CreateMapPin(waypoint, icon, rank)
     worldPin:SetScript("OnEnter", function()
         GameTooltip:SetOwner(worldPin, "ANCHOR_RIGHT")
         GameTooltip:SetText(waypoint.title)
+        GameTooltip:AddLine(tostring(targetLevel))
         GameTooltip:Show()
     end)
     worldPin:SetScript("OnLeave", function()
@@ -354,6 +360,7 @@ function MapMate:CreateMapPin(waypoint, icon, rank)
     minimapPin:SetScript("OnEnter", function()
         GameTooltip:SetOwner(minimapPin, "ANCHOR_RIGHT")
         GameTooltip:SetText(waypoint.title)
+        GameTooltip:AddLine(tostring(targetLevel))
         GameTooltip:Show()
     end)
     minimapPin:SetScript("OnLeave", function()
@@ -361,8 +368,9 @@ function MapMate:CreateMapPin(waypoint, icon, rank)
     end)
 end
 
+
 -- Fonction pour ajouter un waypoint
-function MapMate:AddWaypoint(mapID, x, y, title, icon, rank)
+function MapMate:AddWaypoint(mapID, x, y, title, icon, rank, targetLevel)
     local waypoint = {
         mapID = mapID,
         x = x,
@@ -371,7 +379,7 @@ function MapMate:AddWaypoint(mapID, x, y, title, icon, rank)
     }
     table.insert(waypoints, waypoint)
     -- Ajout du pin via HereBeDragons
-    self:CreateMapPin(waypoint, icon, rank)
+    self:CreateMapPin(waypoint, icon, rank, targetLevel)
 end
 
 -- Fonction pour supprimer tous les waypoints
