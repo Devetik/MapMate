@@ -9,12 +9,14 @@ end
 -- Paramètres par défaut
 local defaults = {
     showRanks = true,
-    iconSize = 1.0, -- Taille par défaut en ratio
+    iconSize = 1.0,
+    lockIcon = false,
     minimap = { x = 0, y = 0, hide = false }
 }
 
 -- Variable pour la fenêtre de configuration
 local configFrame
+local minimapButton -- Variable globale pour le bouton minimap
 
 -- Fonction pour initialiser les paramètres sauvegardés
 local function InitializeSettings()
@@ -25,27 +27,31 @@ local function InitializeSettings()
     end
 end
 
+-- Fonction pour mettre à jour le statut de verrouillage de l'icône
+local function UpdateMinimapButtonLock()
+    if minimapButton then
+        minimapButton:SetMovable(not MapMateDB.lockIcon)
+        print(MapMateDB.lockIcon and "Icône verrouillée." or "Icône déverrouillée.")
+    end
+end
+
 -- Création manuelle d'un bouton sur la minimap
 local function CreateMinimapButton()
-    -- Frame de l'icône
-    local minimapButton = CreateFrame("Button", "MapMateMinimapButton", Minimap)
-    minimapButton:SetSize(32, 32) -- Taille du bouton
+    minimapButton = CreateFrame("Button", "MapMateMinimapButton", Minimap)
+    minimapButton:SetSize(32, 32)
     minimapButton:SetFrameStrata("MEDIUM")
     minimapButton:SetFrameLevel(8)
-    
-    -- Texture de l'icône
+
     local icon = minimapButton:CreateTexture(nil, "BACKGROUND")
     icon:SetTexture("Interface\\Icons\\INV_Misc_Map02")
     icon:SetSize(20, 20)
     icon:SetPoint("CENTER")
-    
-    -- Texture pour l'effet "pushed" (quand le bouton est cliqué)
+
     local pushedTexture = minimapButton:CreateTexture(nil, "OVERLAY")
     pushedTexture:SetTexture("Interface\\Buttons\\UI-Quickslot-Depress")
     pushedTexture:SetAllPoints()
     minimapButton:SetPushedTexture(pushedTexture)
-    
-    -- Fonctionnalité de clic
+
     minimapButton:SetScript("OnClick", function(_, button)
         if button == "LeftButton" then
             MapMateUI:ToggleConfigWindow()
@@ -53,33 +59,29 @@ local function CreateMinimapButton()
             print("Clic droit sur l'icône MapMate.")
         end
     end)
-    
-    -- Déplacement manuel de l'icône
-    minimapButton:SetMovable(true)
+
     minimapButton:RegisterForDrag("LeftButton")
     minimapButton:SetScript("OnDragStart", function(self)
-        self:StartMoving()
+        if not MapMateDB.lockIcon then
+            self:StartMoving()
+        end
     end)
     minimapButton:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
-        -- Sauvegarder la position
         local x, y = self:GetCenter()
         local mx, my = Minimap:GetCenter()
         MapMateDB.minimap.x = x - mx
         MapMateDB.minimap.y = y - my
     end)
-    
-    -- Initialiser la position
+
     minimapButton:SetPoint("CENTER", Minimap, "CENTER", MapMateDB.minimap.x, MapMateDB.minimap.y)
-    
-    -- Gestion de la visibilité
+
     if MapMateDB.minimap.hide then
         minimapButton:Hide()
     else
         minimapButton:Show()
     end
-    
-    -- Ajouter un tooltip
+
     minimapButton:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
         GameTooltip:SetText("MapMate", 1, 1, 1)
@@ -90,6 +92,9 @@ local function CreateMinimapButton()
     minimapButton:SetScript("OnLeave", function()
         GameTooltip:Hide()
     end)
+
+    -- Appliquer le statut initial de verrouillage
+    UpdateMinimapButtonLock()
 end
 
 -- Gestion de l'ouverture et fermeture de la fenêtre
@@ -107,8 +112,7 @@ function MapMateUI:ShowConfigWindow()
         configFrame:Show()
         return
     end
-    
-    -- Création de la fenêtre
+
     configFrame = AceGUI:Create("Frame")
     configFrame:SetTitle("Paramètres MapMate")
     configFrame:SetStatusText("Modifiez les paramètres ci-dessous")
@@ -118,27 +122,32 @@ function MapMateUI:ShowConfigWindow()
     end)
     configFrame:SetLayout("List")
 
-    configFrame:SetWidth(300)  -- Largeur en pixels
-    configFrame:SetHeight(300) -- Hauteur en pixels
+    configFrame:SetWidth(300)
+    configFrame:SetHeight(300)
 
-    -- Case à cocher pour afficher les rangs
     local showRanksCheckbox = AceGUI:Create("CheckBox")
     showRanksCheckbox:SetLabel("Afficher les rangs de la guilde")
     showRanksCheckbox:SetValue(MapMateDB.showRanks)
     showRanksCheckbox:SetCallback("OnValueChanged", function(_, _, value)
         MapMateDB.showRanks = value
-        --print("Afficher les rangs de la guilde :", value and "Activé" or "Désactivé")
     end)
     configFrame:AddChild(showRanksCheckbox)
 
-    -- Slider pour définir la taille des icônes
+    local lockButton = AceGUI:Create("CheckBox")
+    lockButton:SetLabel("Lock l'icône")
+    lockButton:SetValue(MapMateDB.lockIcon)
+    lockButton:SetCallback("OnValueChanged", function(_, _, value)
+        MapMateDB.lockIcon = value
+        UpdateMinimapButtonLock() -- Met à jour le statut de verrouillage
+    end)
+    configFrame:AddChild(lockButton)
+
     local iconSizeSlider = AceGUI:Create("Slider")
     iconSizeSlider:SetLabel("Taille des icônes (%)")
     iconSizeSlider:SetSliderValues(25, 200, 1)
     iconSizeSlider:SetValue(MapMateDB.iconSize * 100)
     iconSizeSlider:SetCallback("OnValueChanged", function(_, _, value)
         MapMateDB.iconSize = value / 100
-        --print("Nouvelle taille des icônes :", value .. "%")
     end)
     configFrame:AddChild(iconSizeSlider)
 end
