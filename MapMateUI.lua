@@ -5,14 +5,6 @@ local MapMateUI = {}
 _G["MapMateUI"] = MapMateUI
 local AceGUI = LibStub("AceGUI-3.0")
 
-if not AceGUI then
-    print("AceGUI is not loaded.")
-else
-    print("AceGUI is loaded successfully.")
-end
-
-print("ConfigFrame:", configFrame)
-
 if not MapMateDB then
     MapMateDB = {}
 end
@@ -44,7 +36,6 @@ end
 local function UpdateMinimapButtonLock()
     if minimapButton then
         minimapButton:SetMovable(not MapMateDB.lockIcon)
-        print(MapMateDB.lockIcon and "Icône verrouillée." or "Icône déverrouillée.")
     end
 end
 

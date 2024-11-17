@@ -17,7 +17,6 @@ if not IsAddOnLoaded("Blizzard_DebugTools") then
     LoadAddOn("Blizzard_DebugTools") -- Assurez-vous que la bibliothèque est chargée
 end
 if not EasyMenu then
-    print("Chargement de UIDropDownMenu...")
     LoadAddOn("Blizzard_UIDropDownMenu") -- Charge UIDropDownMenu si nécessaire
 end
 
