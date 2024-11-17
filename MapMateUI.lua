@@ -178,3 +178,9 @@ frame:SetScript("OnEvent", function(_, _, addonName)
         MapMateUI:Initialize()
     end
 end)
+
+-- Ajout de la commande /mapmate pour ouvrir la fenêtre de configuration
+SLASH_MAPMATE1 = "/mapmate"
+SlashCmdList["MAPMATE"] = function()
+    MapMateUI:ToggleConfigWindow()
+end
