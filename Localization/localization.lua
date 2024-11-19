@@ -15,7 +15,9 @@ L["Icon Size"] = "Icon Size (%)"
 L["MapMate Parameter"] = "MapMate Parameter"
 L["Edit Parameters"] = "Edit Parameters"
 L["Left Click"] = "Left click to open/close parameters."
-L["Simple Dots"] = "Show player as simple dots"
+L["Simple Dots"] = "Show players as simple dots"
+L["displayName"] = "Show players name"
+L["displayHealth"] = "Show players health"
 
 -- Traductions en français
 if locale == "frFR" then
@@ -32,6 +34,8 @@ if locale == "frFR" then
     L["Edit Parameters"] = "Modifier les paramètres"
     L["Left Click"] = "Clic gauche : Ouvrir/fermer les paramètres."
     L["Simple Dots"] = "Afficher les joueurs sous forme de points"
+    L["displayName"] = "Afficher le nom des joueurs"
+    L["displayHealth"] = "Afficher la vie des joueurs"
 end
 
 -- Fonction globale pour accéder aux traductions

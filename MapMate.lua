@@ -27,37 +27,6 @@ local timeSinceLastUpdate = 0
 local maxTimeBetweenUpdate = 3 -- En secondes
 local lastSentPosition = { x = nil, y = nil, mapID = nil } -- Dernière position envoyée
 
-function MapMate:GetClassIcon()
-    local _, classFileName = UnitClass("player")
-    if classFileName == "DRUID" then
-        return "Interface\\AddOns\\MapMate\\Textures\\DRUID"
-
-    elseif classFileName == "HUNTER" then
-        return "Interface\\AddOns\\MapMate\\Textures\\HUNTER"
-        
-    elseif classFileName == "MAGE" then 
-        return "Interface\\AddOns\\MapMate\\Textures\\MAGE"
-
-    elseif classFileName == "PALADIN" then
-        return "Interface\\AddOns\\MapMate\\Textures\\PALADIN"
-
-    elseif classFileName == "PRIEST" then
-        return "Interface\\AddOns\\MapMate\\Textures\\PRIEST"
-
-    elseif classFileName == "ROGUE" then
-        return "Interface\\AddOns\\MapMate\\Textures\\ROGUE"
-
-    elseif classFileName == "SHAMAN" then
-        return "Interface\\AddOns\\MapMate\\Textures\\SHAMAN"
-
-    elseif classFileName == "WARLOCK" then
-        return "Interface\\AddOns\\MapMate\\Textures\\WARLOCK"
-
-    elseif classFileName == "WARRIOR" then
-        return "Interface\\AddOns\\MapMate\\Textures\\WARRIOR"
-    end
-end
-local selectedTexture = MapMate:GetClassIcon()
 -- Fonction pour calculer la distance entre deux points
 local function CalculateDistance(x1, y1, x2, y2)
     if not x1 or not y1 or not x2 or not y2 then return math.huge end
@@ -245,8 +214,8 @@ function MapMate:SendGuildPosition()
                     local level = UnitLevel("player")
                     local _, classFileName = UnitClass("player")
                     local class = classFileName
-                    local icon = selectedTexture
-                    local message = string.format("%s,%s,%d,%s,%.3f,%.3f,%d,%s", name, playerRank, level, class, x, y, mapID, icon)
+                    local playerHealthPercent = UnitHealth("player") / UnitHealthMax("player") * 100
+                    local message = string.format("%s,%s,%d,%s,%.3f,%.3f,%d,%s", name, playerRank, level, class, x, y, mapID, playerHealthPercent)
                     C_ChatInfo.SendAddonMessage(ADDON_PREFIX, message, "GUILD")
                     lastSentPosition = { x = x, y = y, mapID = mapID }
                     timeSinceLastUpdate = 0
@@ -268,23 +237,36 @@ end
 -- Fonction pour traiter les messages reçus via Addon Message
 local function OnAddonMessage(prefix, text, channel, sender)
     if prefix == ADDON_PREFIX and not IsSelf(sender) then
-        local name, rank, level, class, x, y, mapID, icon = strsplit(",", text)
-        --print("Update ", name, " ", rank, " ", level, " ", class, " ", x, " ", y, " ", mapID, " ", icon)
-        x, y, mapID, level = tonumber(x), tonumber(y), tonumber(mapID), tonumber(level)
+        -- Décomposer le message en valeurs individuelles
+        local name, rank, level, class, x, y, mapID, healthPercent = strsplit(",", text)
 
-        if x and y and mapID then
-            guildMembers[name] = {
-                rank = rank,
-                level = level,
-                class = class,
-                x = x,
-                y = y,
-                mapID = mapID,
-                icon = icon,
-            }
+        -- Vérifications et conversions
+        name = type(name) == "string" and name or "Unknown"
+        rank = type(rank) == "string" and rank or "5"
+        level = tonumber(level) or 1 -- Par défaut, niveau 1
+        class = type(class) == "string" and class:upper() or "UNKNOWN" -- Par défaut, classe "UNKNOWN"
+        x = tonumber(x) or 0 -- Par défaut, 0
+        y = tonumber(y) or 0 -- Par défaut, 0
+        mapID = tonumber(mapID) or 0 -- Par défaut, 0
+        healthPercent = tonumber(healthPercent) or 100
 
-            MapMate:CreateGuildMemberPin(name, icon, rank, level, class)
-        end
+        -- Vérifie que les coordonnées sont dans des plages acceptables (0-1 pour x et y)
+        if x < 0 or x > 1 then x = 0 end
+        if y < 0 or y > 1 then y = 0 end
+
+        -- Ajouter les informations du membre à la liste des membres de guilde
+        guildMembers[name] = {
+            rank = rank,
+            level = level,
+            class = class,
+            x = x,
+            y = y,
+            mapID = mapID,
+            healthPercent = healthPercent,
+        }
+
+        -- Créer le pin sur la carte pour ce membre
+        MapMate:CreateGuildMemberPin(name, healthPercent, rank, level, class)
     end
 end
 
@@ -297,40 +279,17 @@ frame:SetScript("OnEvent", function(self, event, ...)
     if event == "CHAT_MSG_ADDON" then
         local prefix, text, channel, sender = ...
         OnAddonMessage(prefix, text, channel, sender)
-    elseif event == "PLAYER_ENTERING_WORLD" or event == "ZONE_CHANGED_NEW_AREA" then
-        MapMate:RefreshPins()
     end
 end)
 
 -- Fonction pour créer ou mettre à jour un pin pour un membre de la guilde
-function MapMate:CreateGuildMemberPin(memberName, icon, rank, targetLevel, class)
+function MapMate:CreateGuildMemberPin(memberName, healthPercent, rank, targetLevel, class)
     local member = guildMembers[memberName]
     if not member then return end
 
-    MapMate:RemovePinsByTitle(memberName, icon)
-    self:AddWaypoint(member.mapID, member.x, member.y, memberName, icon, rank, targetLevel, class)
+    MapMate:RemovePinsByTitle(memberName)
+    self:AddWaypoint(member.mapID, member.x, member.y, memberName, healthPercent, rank, targetLevel, class)
 end
-
--- Fonction pour rafraîchir les pins dynamiquement
-function MapMate:RefreshPins()
-    for memberName, _ in pairs(guildMembers) do
-        self:CreateGuildMemberPin(memberName)
-    end
-end
-
--- Gestion des événements
-local frame = CreateFrame("Frame")
-frame:RegisterEvent("CHAT_MSG_GUILD")
-frame:RegisterEvent("PLAYER_ENTERING_WORLD")
-frame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
-frame:SetScript("OnEvent", function(self, event, ...)
-    if event == "CHAT_MSG_GUILD" then
-        local text, sender = ...
-        ProcessGuildMessage(text, sender)
-    elseif event == "PLAYER_ENTERING_WORLD" or event == "ZONE_CHANGED_NEW_AREA" then
-        MapMate:RefreshPins()
-    end
-end)
 
 -- Mise à jour périodique pour envoyer la position
 local updateFrame = CreateFrame("Frame")
@@ -344,19 +303,19 @@ end)
 -- Fonction pour obtenir les couleurs RGB des classes
 function GetClassColorRGB(className)
     local classColors = {
-        WARRIOR = {1, 0.78, 0.55}, -- Marron clair
-        PALADIN = {0.96, 0.55, 0.73}, -- Rose clair
-        HUNTER = {0.67, 0.83, 0.45}, -- Vert clair
-        ROGUE = {1, 0.96, 0.41}, -- Jaune
-        PRIEST = {1, 1, 1}, -- Blanc
-        DEATHKNIGHT = {0.77, 0.12, 0.23}, -- Rouge foncé
-        SHAMAN = {0, 0.44, 0.87}, -- Bleu
-        MAGE = {0.25, 0.78, 0.92}, -- Bleu clair
-        WARLOCK = {0.53, 0.53, 0.93}, -- Violet
-        MONK = {0, 1, 0.59}, -- Vert jade
-        DRUID = {1, 0.49, 0.04}, -- Orange
-        DEMONHUNTER = {0.64, 0.19, 0.79}, -- Violet sombre
-        EVOKER = {0.2, 0.58, 0.5} -- Vert émeraude
+        WARRIOR = {1, 0.78, 0.55},
+        PALADIN = {0.96, 0.55, 0.73},
+        HUNTER = {0.67, 0.83, 0.45},
+        ROGUE = {1, 0.96, 0.41},
+        PRIEST = {1, 1, 1},
+        DEATHKNIGHT = {0.77, 0.12, 0.23},
+        SHAMAN = {0, 0.44, 0.87},
+        MAGE = {0.25, 0.78, 0.92},
+        WARLOCK = {0.53, 0.53, 0.93},
+        MONK = {0, 1, 0.59},
+        DRUID = {1, 0.49, 0.04},
+        DEMONHUNTER = {0.64, 0.19, 0.79},
+        EVOKER = {0.2, 0.58, 0.5}
     }
 
     -- Récupère les couleurs RGB pour la classe donnée (ou blanc par défaut)
@@ -364,13 +323,37 @@ function GetClassColorRGB(className)
     return unpack(color) -- Retourne les trois valeurs RGB séparées
 end
 
+-- Fonction pour obtenir uniquement l'icône des classes
+function GetClassIconPath(className)
+    local classIcons = {
+        WARRIOR = "Interface\\AddOns\\MapMate\\Textures\\WARRIOR",
+        PALADIN = "Interface\\AddOns\\MapMate\\Textures\\PALADIN",
+        HUNTER = "Interface\\AddOns\\MapMate\\Textures\\HUNTER",
+        ROGUE = "Interface\\AddOns\\MapMate\\Textures\\ROGUE",
+        PRIEST = "Interface\\AddOns\\MapMate\\Textures\\PRIEST",
+        DEATHKNIGHT = "Interface\\AddOns\\MapMate\\Textures\\DEATHKNIGHT",
+        SHAMAN = "Interface\\AddOns\\MapMate\\Textures\\SHAMAN",
+        MAGE = "Interface\\AddOns\\MapMate\\Textures\\MAGE",
+        WARLOCK = "Interface\\AddOns\\MapMate\\Textures\\WARLOCK",
+        MONK = "Interface\\AddOns\\MapMate\\Textures\\MONK",
+        DRUID = "Interface\\AddOns\\MapMate\\Textures\\DRUID",
+        DEMONHUNTER = "Interface\\AddOns\\MapMate\\Textures\\DEMONHUNTER",
+        EVOKER = "Interface\\AddOns\\MapMate\\Textures\\EVOKER"
+    }
+
+    -- Retourne le chemin de l'icône ou une icône par défaut si la classe est invalide
+    return classIcons[className:upper()] or "Interface\\AddOns\\MapMate\\Textures\\WARRIOR"
+end
+
 -- Fonction pour créer deux pins (carte et mini-carte)
-function MapMate:CreateMapPin(waypoint, icon, rank, targetLevel, className)
+function MapMate:CreateMapPin(waypoint, healthPercent, rank, targetLevel, className)
 
     local size = MapMateDB.iconSize
     local displayRank = MapMateDB.showRanks
     local displayLevel = MapMateDB.displayLevel
     local displaySimpleDots = MapMateDB.simpleDots
+    local displayName = MapMateDB.displayName
+    local displayHealth = MapMateDB.displayHealth
 
     -- Supprime les anciens pins s'ils existent
     if pins[waypoint] then
@@ -393,7 +376,7 @@ function MapMate:CreateMapPin(waypoint, icon, rank, targetLevel, className)
     if displaySimpleDots then
         worldTexture:SetTexture("Interface\\AddOns\\MapMate\\Textures\\Pin")
     else
-        worldTexture:SetTexture(icon)
+        worldTexture:SetTexture(GetClassIconPath(className))
     end
     worldPin.texture = worldTexture
 
@@ -404,13 +387,33 @@ function MapMate:CreateMapPin(waypoint, icon, rank, targetLevel, className)
         end
     end)
 
+    if displayHealth then
+        -- Ajouter une barre de vie au-dessus du pin
+        local healthBarBackground = worldPin:CreateTexture(nil, "ARTWORK")
+        healthBarBackground:SetColorTexture(0.2, 0.2, 0.2, 1) -- Couleur grise
+        healthBarBackground:SetSize(18 * size, 3 * size)
+        healthBarBackground:SetPoint("BOTTOM", worldPin, "TOP", 0, 13*size)
+
+        local healthBar = worldPin:CreateTexture(nil, "OVERLAY")
+        healthBar:SetColorTexture(0, 1, 0, 1) -- Couleur verte
+        healthBar:SetSize(18 * size * (healthPercent / 100), 3 * size) -- Largeur proportionnelle à la vie
+        healthBar:SetPoint("LEFT", healthBarBackground, "LEFT")
+    end
+
     -- Ajouter le niveau en dessous de la pin
-    if displayLevel then
+    if displayName then
         local levelText = worldPin:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        levelText:SetPoint("TOP", worldPin, "TOP", 0, 10*size) -- Position sous la pin
-        levelText:SetText(tostring(targetLevel)) -- Affiche le niveau ou "?" si inconnu
-        --levelText:SetTextColor(0, 0, 0)
-        levelText:SetFont("Fonts\\FRIZQT__.TTF", 10*size, "OUTLINE")
+        levelText:SetPoint("TOP", worldPin, "BOTTOM", 0, -6 * size) -- Position sous la pin
+        levelText:SetText(tostring(waypoint.title)) -- Affiche le niveau ou "?" si inconnu
+        levelText:SetFont("Fonts\\FRIZQT__.TTF", 10 * size, "OUTLINE")
+    end
+
+    -- Ajouter le nom en bas des pins
+    if displayLevel then
+        local nameText = worldPin:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        nameText:SetPoint("TOP", worldPin, "TOP", 0, 10 * size) -- Position sous la pin
+        nameText:SetText(tostring(targetLevel)) -- Affiche le niveau ou "?" si inconnu
+        nameText:SetFont("Fonts\\FRIZQT__.TTF", 10 * size, "OUTLINE")
     end
 
     -- Applique les icônes de rang (optionnel)
@@ -438,29 +441,29 @@ function MapMate:CreateMapPin(waypoint, icon, rank, targetLevel, className)
 
     local minimapTexture = minimapPin:CreateTexture(nil, "BACKGROUND")
     minimapTexture:SetAllPoints()
-    minimapTexture:SetTexture(icon)
+    minimapTexture:SetTexture(GetClassIconPath(className))
     minimapPin.texture = minimapTexture
 
     if displayRank then
-        if(rank == "0") then
+        if rank == "0" then
             local overlayTexture = minimapPin:CreateTexture(nil, "OVERLAY")
             overlayTexture:SetPoint("CENTER", minimapPin, "CENTER", -1.3, -0.5)
-            overlayTexture:SetSize(20*size,20*size)
+            overlayTexture:SetSize(20 * size, 20 * size)
             overlayTexture:SetTexture("Interface\\AddOns\\MapMate\\Textures\\GM4")
-        elseif(rank == "1") then
+        elseif rank == "1" then
             local overlayTexture = minimapPin:CreateTexture(nil, "OVERLAY")
             overlayTexture:SetPoint("CENTER", minimapPin, "CENTER", -1.3, -0.5)
-            overlayTexture:SetSize(20*size,20*size)
+            overlayTexture:SetSize(20 * size, 20 * size)
             overlayTexture:SetTexture("Interface\\AddOns\\MapMate\\Textures\\Officier")
-        elseif(rank == "2") then
+        elseif rank == "2" then
             local overlayTexture = minimapPin:CreateTexture(nil, "OVERLAY")
             overlayTexture:SetPoint("CENTER", minimapPin, "CENTER", -1.3, -0.5)
-            overlayTexture:SetSize(20*size,20*size)
+            overlayTexture:SetSize(20 * size, 20 * size)
             overlayTexture:SetTexture("Interface\\AddOns\\MapMate\\Textures\\Veteran2")
-        elseif(rank == "3") then
+        elseif rank == "3" then
             local overlayTexture = minimapPin:CreateTexture(nil, "OVERLAY")
             overlayTexture:SetPoint("CENTER", minimapPin, "CENTER", -1.3, -0.5)
-            overlayTexture:SetSize(20*size,20*size)
+            overlayTexture:SetSize(20 * size, 20 * size)
             overlayTexture:SetTexture("Interface\\AddOns\\MapMate\\Textures\\Member2")
         end
     end
@@ -499,17 +502,19 @@ function MapMate:CreateMapPin(waypoint, icon, rank, targetLevel, className)
     end)
 end
 
+
 -- Fonction pour ajouter un waypoint
-function MapMate:AddWaypoint(mapID, x, y, title, icon, rank, targetLevel, class)
+function MapMate:AddWaypoint(mapID, x, y, title, healthPercent, rank, targetLevel, class)
     local waypoint = {
         mapID = mapID,
         x = x,
         y = y,
         title = title or "Waypoint",
+        healthPercent = healthPercent,
     }
     table.insert(waypoints, waypoint)
     -- Ajout du pin via HereBeDragons
-    self:CreateMapPin(waypoint, icon, rank, targetLevel, class)
+    self:CreateMapPin(waypoint, healthPercent, rank, targetLevel, class)
 end
 
 -- Fonction pour supprimer tous les waypoints

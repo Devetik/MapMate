@@ -16,6 +16,8 @@ local defaults = {
     lockIcon = false,
     displayLevel = true,
     simpleDots = false,
+    displayName = false,
+    displayHealth = false,
     minimap = { x = 0, y = 0, hide = false }
 }
 
@@ -144,6 +146,7 @@ function MapMateUI:ShowConfigWindow()
     end)
     configFrame:AddChild(simpleDots)
 
+    -- Display Level checkbox
     local displayLevel = AceGUI:Create("CheckBox")
     displayLevel:SetLabel(MapMate_Localize("Show Guild Member Level"))
     displayLevel:SetValue(MapMateDB.displayLevel)
@@ -151,6 +154,24 @@ function MapMateUI:ShowConfigWindow()
         MapMateDB.displayLevel = value
     end)
     configFrame:AddChild(displayLevel)
+    
+    -- Display Name checkbox
+    local displayName = AceGUI:Create("CheckBox")
+    displayName:SetLabel(MapMate_Localize("displayName"))
+    displayName:SetValue(MapMateDB.displayName)
+    displayName:SetCallback("OnValueChanged", function(_, _, value)
+        MapMateDB.displayName = value
+    end)
+    configFrame:AddChild(displayName)
+        
+    -- Display Health checkbox
+    local displayHealth = AceGUI:Create("CheckBox")
+    displayHealth:SetLabel(MapMate_Localize("displayHealth"))
+    displayHealth:SetValue(MapMateDB.displayHealth)
+    displayHealth:SetCallback("OnValueChanged", function(_, _, value)
+        MapMateDB.displayHealth = value
+    end)
+    configFrame:AddChild(displayHealth)
 
     local lockButton = AceGUI:Create("CheckBox")
     lockButton:SetLabel(MapMate_Localize("Icon Lock"))
