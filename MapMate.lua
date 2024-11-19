@@ -214,7 +214,7 @@ function MapMate:SendGuildPosition()
                     local level = UnitLevel("player")
                     local _, classFileName = UnitClass("player")
                     local class = classFileName
-                    local playerHealthPercent = UnitHealth("player") / UnitHealthMax("player") * 100
+                    local playerHealthPercent = math.floor(UnitHealth("player") / UnitHealthMax("player") * 100)
                     local message = string.format("%s,%s,%d,%s,%.3f,%.3f,%d,%s", name, playerRank, level, class, x, y, mapID, playerHealthPercent)
                     C_ChatInfo.SendAddonMessage(ADDON_PREFIX, message, "GUILD")
                     lastSentPosition = { x = x, y = y, mapID = mapID }
@@ -575,7 +575,6 @@ local function UpdateGuildRoster()
     -- Comparer les états en ligne
     for name, wasOnline in pairs(previousRoster) do
         if wasOnline and not currentRoster[name] then
-            print("Déconnexion détectée : " .. name)
             MapMate:RemovePinsByTitle(Ambiguate(name, "short"))
         end
     end
