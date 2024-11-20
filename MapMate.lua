@@ -256,20 +256,8 @@ local function OnAddonMessage(prefix, text, channel, sender)
         if x < 0 or x > 1 then x = 0 end
         if y < 0 or y > 1 then y = 0 end
 
-        -- Ajouter les informations du membre à la liste des membres de guilde
-        guildMembers[name] = {
-            rank = rank,
-            level = level,
-            class = class,
-            x = x,
-            y = y,
-            mapID = mapID,
-            healthPercent = healthPercent,
-            layer = layer,
-        }
-
         -- Créer le pin sur la carte pour ce membre
-        MapMate:CreateGuildMemberPin(name, healthPercent, rank, level, class, layer)
+        MapMate:AddWaypoint(mapID, x, y, name, healthPercent, rank, level, class, layer)
     end
 end
 
@@ -284,15 +272,6 @@ frame:SetScript("OnEvent", function(self, event, ...)
         OnAddonMessage(prefix, text, channel, sender)
     end
 end)
-
--- Fonction pour créer ou mettre à jour un pin pour un membre de la guilde
-function MapMate:CreateGuildMemberPin(memberName, healthPercent, rank, targetLevel, class, layer)
-    local member = guildMembers[memberName]
-    if not member then return end
-
-    MapMate:RemovePinsByTitle(memberName)
-    self:AddWaypoint(member.mapID, member.x, member.y, memberName, healthPercent, rank, targetLevel, class, layer)
-end
 
 -- Mise à jour périodique pour envoyer la position
 local updateFrame = CreateFrame("Frame")
@@ -530,6 +509,7 @@ end
 
 -- Fonction pour ajouter un waypoint
 function MapMate:AddWaypoint(mapID, x, y, title, healthPercent, rank, targetLevel, class, layer)
+    MapMate:RemovePinsByTitle(title)
     local waypoint = {
         mapID = mapID,
         x = x,
