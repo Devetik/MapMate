@@ -8,6 +8,7 @@ local waypoints = MapMate.waypoints or {}
 MapMate.waypoints = waypoints
 local pins = {} -- Table pour stocker les pins
 local guildMembers = {} -- Table pour stocker les informations des membres de la guilde
+local currentLayer = 0
 
 -- Chargement de la bibliothèque HereBeDragons
 local HBD = LibStub("HereBeDragons-2.0")
@@ -215,7 +216,7 @@ function MapMate:SendGuildPosition()
                     local _, classFileName = UnitClass("player")
                     local class = classFileName
                     local playerHealthPercent = math.floor(UnitHealth("player") / UnitHealthMax("player") * 100)
-                    local message = string.format("%s,%s,%d,%s,%.3f,%.3f,%d,%s", name, playerRank, level, class, x, y, mapID, playerHealthPercent)
+                    local message = string.format("%s,%s,%d,%s,%.3f,%.3f,%d,%d,%d", name, playerRank, level, class, x, y, mapID, playerHealthPercent, currentLayer)
                     C_ChatInfo.SendAddonMessage(ADDON_PREFIX, message, "GUILD")
                     lastSentPosition = { x = x, y = y, mapID = mapID }
                     timeSinceLastUpdate = 0
@@ -238,7 +239,7 @@ end
 local function OnAddonMessage(prefix, text, channel, sender)
     if prefix == ADDON_PREFIX and not IsSelf(sender) then
         -- Décomposer le message en valeurs individuelles
-        local name, rank, level, class, x, y, mapID, healthPercent = strsplit(",", text)
+        local name, rank, level, class, x, y, mapID, healthPercent, layer = strsplit(",", text)
 
         -- Vérifications et conversions
         name = type(name) == "string" and name or "Unknown"
@@ -249,6 +250,7 @@ local function OnAddonMessage(prefix, text, channel, sender)
         y = tonumber(y) or 0 -- Par défaut, 0
         mapID = tonumber(mapID) or 0 -- Par défaut, 0
         healthPercent = tonumber(healthPercent) or 100
+        layer = tonumber(layer) or 0
 
         -- Vérifie que les coordonnées sont dans des plages acceptables (0-1 pour x et y)
         if x < 0 or x > 1 then x = 0 end
@@ -263,10 +265,11 @@ local function OnAddonMessage(prefix, text, channel, sender)
             y = y,
             mapID = mapID,
             healthPercent = healthPercent,
+            layer = layer,
         }
 
         -- Créer le pin sur la carte pour ce membre
-        MapMate:CreateGuildMemberPin(name, healthPercent, rank, level, class)
+        MapMate:CreateGuildMemberPin(name, healthPercent, rank, level, class, layer)
     end
 end
 
@@ -283,12 +286,12 @@ frame:SetScript("OnEvent", function(self, event, ...)
 end)
 
 -- Fonction pour créer ou mettre à jour un pin pour un membre de la guilde
-function MapMate:CreateGuildMemberPin(memberName, healthPercent, rank, targetLevel, class)
+function MapMate:CreateGuildMemberPin(memberName, healthPercent, rank, targetLevel, class, layer)
     local member = guildMembers[memberName]
     if not member then return end
 
     MapMate:RemovePinsByTitle(memberName)
-    self:AddWaypoint(member.mapID, member.x, member.y, memberName, healthPercent, rank, targetLevel, class)
+    self:AddWaypoint(member.mapID, member.x, member.y, memberName, healthPercent, rank, targetLevel, class, layer)
 end
 
 -- Mise à jour périodique pour envoyer la position
@@ -346,7 +349,7 @@ function GetClassIconPath(className)
 end
 
 -- Fonction pour créer deux pins (carte et mini-carte)
-function MapMate:CreateMapPin(waypoint, healthPercent, rank, targetLevel, className)
+function MapMate:CreateMapPin(waypoint, healthPercent, rank, targetLevel, className, layer)
 
     local size = MapMateDB.iconSize
     local displayRank = MapMateDB.showRanks
@@ -354,7 +357,9 @@ function MapMate:CreateMapPin(waypoint, healthPercent, rank, targetLevel, classN
     local displaySimpleDots = MapMateDB.simpleDots
     local displayName = MapMateDB.displayName
     local displayHealth = MapMateDB.displayHealth
+    local displayLayer = MapMateDB.showPlayersLayer
 
+    
     -- Supprime les anciens pins s'ils existent
     if pins[waypoint] then
         if pins[waypoint].world then
@@ -364,6 +369,11 @@ function MapMate:CreateMapPin(waypoint, healthPercent, rank, targetLevel, classN
             HBDPins:RemoveMinimapIcon("MapMate", pins[waypoint].minimap)
         end
         pins[waypoint] = nil
+    end
+
+    -- Ignore les joueurs sur d'autres layers
+    if MapMateDB.ignorePlayerOnOtherLayers and layer ~= currentLayer and currentLayer ~= 0 then
+        return
     end
 
     -- Crée un pin pour la carte mondiale
@@ -414,6 +424,18 @@ function MapMate:CreateMapPin(waypoint, healthPercent, rank, targetLevel, classN
         nameText:SetPoint("TOP", worldPin, "TOP", 0, 10 * size) -- Position sous la pin
         nameText:SetText(tostring(targetLevel)) -- Affiche le niveau ou "?" si inconnu
         nameText:SetFont("Fonts\\FRIZQT__.TTF", 10 * size, "OUTLINE")
+    end
+
+    -- Ajouter le niveau en dessous de la pin
+    if displayLayer and waypoint.layer ~= 0 then
+        local targetLayer = worldPin:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        local decal = -6
+        if(displayName) then
+            decal = -16
+        end
+        targetLayer:SetPoint("TOP", worldPin, "BOTTOM", 0, decal * size) -- Position sous la pin
+        targetLayer:SetText("Layer " .. tostring(waypoint.layer)) -- Affiche le niveau ou "?" si inconnu
+        targetLayer:SetFont("Fonts\\FRIZQT__.TTF", 10 * size, "OUTLINE")
     end
 
     -- Applique les icônes de rang (optionnel)
@@ -484,6 +506,9 @@ function MapMate:CreateMapPin(waypoint, healthPercent, rank, targetLevel, classN
         GameTooltip:SetOwner(worldPin, "ANCHOR_RIGHT")
         GameTooltip:ClearLines() -- Nettoie les lignes précédentes
         GameTooltip:AddLine(waypoint.title, r, g, b)
+        if(MapMateDB.showPlayersLayerTooltip and waypoint.layer ~= 0) then
+            GameTooltip:AddLine("Layer " .. tostring(waypoint.layer), 1, 1, 1)
+        end
         GameTooltip:Show()
     end)
     worldPin:SetScript("OnLeave", function()
@@ -504,17 +529,18 @@ end
 
 
 -- Fonction pour ajouter un waypoint
-function MapMate:AddWaypoint(mapID, x, y, title, healthPercent, rank, targetLevel, class)
+function MapMate:AddWaypoint(mapID, x, y, title, healthPercent, rank, targetLevel, class, layer)
     local waypoint = {
         mapID = mapID,
         x = x,
         y = y,
         title = title or "Waypoint",
         healthPercent = healthPercent,
+        layer = layer,
     }
     table.insert(waypoints, waypoint)
     -- Ajout du pin via HereBeDragons
-    self:CreateMapPin(waypoint, healthPercent, rank, targetLevel, class)
+    self:CreateMapPin(waypoint, healthPercent, rank, targetLevel, class, layer)
 end
 
 -- Fonction pour supprimer tous les waypoints
@@ -594,3 +620,17 @@ end)
 
 -- Initialisation au chargement de l'addon
 GuildRoster()
+
+-- Vérifie si la variable de nova world buff est définie
+local function GetLayerFromNWB()
+    -- Vérifie si la variable globale NWB_CurrentLayer existe
+    if NWB_CurrentLayer ~= nil and NWB_CurrentLayer ~= 0 then
+        currentLayer = NWB_CurrentLayer
+    else
+        currentLayer = 0
+        return nil
+    end
+end
+
+-- Crée un ticker qui exécute la fonction NWB toutes les 5 secondes
+C_Timer.NewTicker(5, GetLayerFromNWB)

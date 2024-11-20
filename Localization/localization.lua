@@ -18,6 +18,10 @@ L["Left Click"] = "Left click to open/close parameters."
 L["Simple Dots"] = "Show players as simple dots"
 L["displayName"] = "Show players name"
 L["displayHealth"] = "Show players health"
+L["NWB_Warning"] = "Members need to have Nova World Buffs installed and activated to be displayed on the map."
+L["ignorePlayerOnOtherLayers"] = "Ignore player who are not on your layer"
+L["showPlayersLayer"] = "Show players layer (if NWB activated)"
+L["showPlayersLayerTooltip"] = "Show players layer tooltip (if NWB activated)"
 
 -- Traductions en français
 if locale == "frFR" then
@@ -36,6 +40,10 @@ if locale == "frFR" then
     L["Simple Dots"] = "Afficher les joueurs sous forme de points"
     L["displayName"] = "Afficher le nom des joueurs"
     L["displayHealth"] = "Afficher la vie des joueurs"
+    L["NWB_Warning"] = "Les membres doivent avoir Nova World Buffs installé et activé pour être affichés sur la carte."
+    L["ignorePlayerOnOtherLayers"] = "Ignore les joueurs qui sont sur d'autres layers"
+    L["showPlayersLayer"] = "Affiche le layer des joueurs (si NWB activé)"
+    L["showPlayersLayerTooltip"] = "Affiche le layer des joueurs dans l'info-bulle (si NWB activé)"
 end
 
 -- Fonction globale pour accéder aux traductions

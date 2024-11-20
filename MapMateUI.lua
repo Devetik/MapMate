@@ -18,6 +18,9 @@ local defaults = {
     simpleDots = false,
     displayName = false,
     displayHealth = false,
+    ignorePlayerOnOtherLayers = false,
+    showPlayersLayer = false,
+    showPlayersLayerTooltip = true,
     minimap = { x = 0, y = 0, hide = false }
 }
 
@@ -127,8 +130,8 @@ function MapMateUI:ShowConfigWindow()
     end)
     configFrame:SetLayout("List")
 
-    configFrame:SetWidth(300)
-    configFrame:SetHeight(300)
+    configFrame:SetWidth(400)
+    configFrame:SetHeight(400)
 
     local showRanksCheckbox = AceGUI:Create("CheckBox")
     showRanksCheckbox:SetLabel(MapMate_Localize("Show Guild Member Rank"))
@@ -190,6 +193,46 @@ function MapMateUI:ShowConfigWindow()
         MapMateDB.iconSize = value / 100
     end)
     configFrame:AddChild(iconSizeSlider)
+
+    -- Ajout d'un séparateur pour les layers
+    local titleHeading = AceGUI:Create("Heading")
+    titleHeading:SetText(MapMate_Localize("Layers Settings"))
+    titleHeading:SetFullWidth(true) -- Le titre occupe toute la largeur
+    configFrame:AddChild(titleHeading)
+
+    --Message d'avertissement
+    local yellowText = AceGUI:Create("Label")
+    yellowText:SetText(MapMate_Localize("NWB_Warning"))
+    yellowText:SetFullWidth(true) -- S'étend sur toute la largeur du conteneur
+    yellowText:SetColor(1, 1, 0) -- Définit la couleur en jaune (RVB : Rouge, Vert, Bleu)
+    configFrame:AddChild(yellowText)
+
+    local ignorePlayerOnOtherLayers = AceGUI:Create("CheckBox")
+    ignorePlayerOnOtherLayers:SetLabel(MapMate_Localize("ignorePlayerOnOtherLayers"))
+    ignorePlayerOnOtherLayers:SetValue(MapMateDB.ignorePlayerOnOtherLayers)
+    ignorePlayerOnOtherLayers:SetFullWidth(true)
+    ignorePlayerOnOtherLayers:SetCallback("OnValueChanged", function(_, _, value)
+        MapMateDB.ignorePlayerOnOtherLayers = value
+    end)
+    configFrame:AddChild(ignorePlayerOnOtherLayers)
+
+    local showPlayersLayer = AceGUI:Create("CheckBox")
+    showPlayersLayer:SetLabel(MapMate_Localize("showPlayersLayer"))
+    showPlayersLayer:SetValue(MapMateDB.showPlayersLayer)
+    showPlayersLayer:SetFullWidth(true)
+    showPlayersLayer:SetCallback("OnValueChanged", function(_, _, value)
+        MapMateDB.showPlayersLayer = value
+    end)
+    configFrame:AddChild(showPlayersLayer)
+
+    local showPlayersLayerTooltip = AceGUI:Create("CheckBox")
+    showPlayersLayerTooltip:SetLabel(MapMate_Localize("showPlayersLayerTooltip"))
+    showPlayersLayerTooltip:SetValue(MapMateDB.showPlayersLayerTooltip)
+    showPlayersLayerTooltip:SetFullWidth(true)
+    showPlayersLayerTooltip:SetCallback("OnValueChanged", function(_, _, value)
+        MapMateDB.showPlayersLayerTooltip = value
+    end)
+    configFrame:AddChild(showPlayersLayerTooltip)
 end
 
 -- Fonction d'initialisation
