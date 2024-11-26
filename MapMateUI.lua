@@ -1,9 +1,11 @@
--- This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
--- If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-- Importation des bibliothèques nécessaires
+local AceConfig = LibStub("AceConfig-3.0")
+local AceConfigDialog = LibStub("AceConfigDialog-3.0")
+local AceGUI = LibStub("AceGUI-3.0")
+local AceConfigRegistry = LibStub("AceConfigRegistry-3.0")
 
 local MapMateUI = {}
 _G["MapMateUI"] = MapMateUI
-local AceGUI = LibStub("AceGUI-3.0")
 
 if not MapMateDB then
     MapMateDB = {}
@@ -21,14 +23,15 @@ local defaults = {
     ignorePlayerOnOtherLayers = false,
     showPlayersLayer = false,
     showPlayersLayerTooltip = true,
-    minimap = { x = 0, y = 0, hide = false }
+    hideMiniMapButton = false,
+    enableMinimapPin = true,
+    MMIconSize = 1.0,
+    simpleDotsMM = false,
+    showRanksMM = true,
+    minimap = { x = -70, y = 0, hide = false }
 }
 
--- Variable pour la fenêtre de configuration
-local configFrame
-local minimapButton -- Variable globale pour le bouton minimap
-
--- Fonction pour initialiser les paramètres sauvegardés
+-- Initialisation des paramètres sauvegardés
 local function InitializeSettings()
     for key, value in pairs(defaults) do
         if MapMateDB[key] == nil then
@@ -37,10 +40,23 @@ local function InitializeSettings()
     end
 end
 
--- Fonction pour mettre à jour le statut de verrouillage de l'icône
+-- Gestion de l'icône minimap
+local minimapButton
+
+-- Fonction pour mettre à jour le statut de verrouillage
 local function UpdateMinimapButtonLock()
     if minimapButton then
         minimapButton:SetMovable(not MapMateDB.lockIcon)
+    end
+end
+
+local function UpdateMinimapButtonVisibility()
+    if minimapButton then
+        if MapMateDB.hideMiniMapButton then
+            minimapButton:Hide()
+        else
+            minimapButton:Show()
+        end
     end
 end
 
@@ -50,6 +66,7 @@ local function CreateMinimapButton()
     minimapButton:SetSize(32, 32)
     minimapButton:SetFrameStrata("MEDIUM")
     minimapButton:SetFrameLevel(8)
+    minimapButton:SetMovable(true) -- Rendre le bouton déplaçable
 
     local icon = minimapButton:CreateTexture(nil, "BACKGROUND")
     icon:SetTexture("Interface\\Icons\\INV_Misc_Map02")
@@ -65,7 +82,7 @@ local function CreateMinimapButton()
         if button == "LeftButton" then
             MapMateUI:ToggleConfigWindow()
         elseif button == "RightButton" then
-            print("Clic droit sur l'icône MapMate.")
+            print("Right-click on the MapMate icon.")
         end
     end)
 
@@ -85,7 +102,7 @@ local function CreateMinimapButton()
 
     minimapButton:SetPoint("CENTER", Minimap, "CENTER", MapMateDB.minimap.x, MapMateDB.minimap.y)
 
-    if MapMateDB.minimap.hide then
+    if MapMateDB.hideMiniMapButton then
         minimapButton:Hide()
     else
         minimapButton:Show()
@@ -94,23 +111,257 @@ local function CreateMinimapButton()
     minimapButton:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
         GameTooltip:SetText("MapMate", 1, 1, 1)
-        GameTooltip:AddLine(MapMate_Localize("Left Click"), 1, 1, 1)
+        GameTooltip:AddLine("Left Click: Open Custom Settings", 1, 1, 1)
+        GameTooltip:AddLine("Right Click: Show Info", 1, 1, 1)
         GameTooltip:Show()
     end)
+
     minimapButton:SetScript("OnLeave", function()
         GameTooltip:Hide()
     end)
 
-    -- Appliquer le statut initial de verrouillage
+    -- Appliquer le statut initial de verrouillage et de visibilité
+    UpdateMinimapButtonVisibility()
     UpdateMinimapButtonLock()
 end
 
--- Gestion de l'ouverture et fermeture de la fenêtre
+local function ResetToDefaults()
+    for key, value in pairs(defaults) do
+        MapMateDB[key] = value
+    end
+    print("MapMate settings have been reset to defaults.")
+    
+    -- Réinitialiser la position du bouton
+    MapMateDB.minimap.x = defaults.minimap.x
+    MapMateDB.minimap.y = defaults.minimap.y
+
+    -- Appliquer les changements
+    UpdateMinimapButtonLock()
+    UpdateMinimapButtonVisibility()
+
+    if minimapButton then
+        minimapButton:ClearAllPoints()
+        minimapButton:SetPoint("CENTER", Minimap, "CENTER", MapMateDB.minimap.x, MapMateDB.minimap.y)
+    end
+end
+
+
+local options = {
+    name = "|TInterface\\AddOns\\MapMate\\Textures\\GM4:16|t MapMate Options",
+    handler = MapMateUI,
+    type = "group",
+    args = {
+        general = {
+            type = "group",
+            name = "General Settings",
+            inline = false,
+            order = 1, -- Définit l'ordre du groupe
+            args = {
+                lockIcon = {
+                    type = "toggle",
+                    name = MapMate_Localize("Icon Lock"),
+                    desc = "Prevent moving the minimap button.",
+                    order = 1,
+                    get = function() return MapMateDB.lockIcon end,
+                    set = function(_, value)
+                        MapMateDB.lockIcon = value
+                        UpdateMinimapButtonLock()
+                    end,
+                },
+                minimapHide = {
+                    type = "toggle",
+                    name = MapMate_Localize("Icon Hide"),
+                    desc = "Enable or disable the minimap icon.",
+                    order = 2,
+                    get = function() return MapMateDB.hideMiniMapButton end,
+                    set = function(_, value)
+                        MapMateDB.hideMiniMapButton = value
+                        UpdateMinimapButtonVisibility()
+                    end,
+                },
+            },
+        },
+        display = {
+            type = "group",
+            name = "Map Settings",
+            inline = false,
+            order = 2,
+            args = {
+                showRanks = {
+                    type = "toggle",
+                    name = "Show Guild Member Ranks",
+                    desc = "Enable or disable showing guild member ranks on the map.",
+                    order = 1, -- Définit l'ordre de cet argument
+                    get = function() return MapMateDB.showRanks end,
+                    set = function(_, value) MapMateDB.showRanks = value end,
+                },
+                simpleDots = {
+                    type = "toggle",
+                    name = "Simple Dots",
+                    desc = "Enable or disable simplified dot icons.",
+                    order = 2,
+                    get = function() return MapMateDB.simpleDots end,
+                    set = function(_, value) MapMateDB.simpleDots = value end,
+                },
+                displayLevel = {
+                    type = "toggle",
+                    name = "Show Levels",
+                    desc = "Enable or disable showing player levels.",
+                    order = 3,
+                    get = function() return MapMateDB.displayLevel end,
+                    set = function(_, value) MapMateDB.displayLevel = value end,
+                },
+                displayName = {
+                    type = "toggle",
+                    name = "Show Names",
+                    desc = "Enable or disable showing player names.",
+                    order = 4,
+                    get = function() return MapMateDB.displayName end,
+                    set = function(_, value) MapMateDB.displayName = value end,
+                },
+                displayHealth = {
+                    type = "toggle",
+                    name = "Show Health",
+                    desc = "Enable or disable showing player health.",
+                    order = 5,
+                    get = function() return MapMateDB.displayHealth end,
+                    set = function(_, value) MapMateDB.displayHealth = value end,
+                },
+                iconSize = {
+                    type = "range",
+                    name = "Icon Size",
+                    desc = "Adjust the size of the icons on the map.",
+                    order = 6,
+                    min = 0.5,
+                    max = 2.0,
+                    step = 0.1,
+                    get = function() return MapMateDB.iconSize end,
+                    set = function(_, value) MapMateDB.iconSize = value end,
+                },
+            },
+        },
+        displayMM = {
+            type = "group",
+            name = "MiniMap Settings",
+            inline = false,
+            order = 3,
+            args = {
+                enableMinimapPin = {
+                    type = "toggle",
+                    name = MapMate_Localize("Enable Minimap Pins"),
+                    desc = "Enable or disable showing player pins on the minimap.",
+                    order = 1,
+                    get = function() return MapMateDB.enableMinimapPin end,
+                    set = function(_, value) 
+                        MapMateDB.enableMinimapPin = value 
+                        -- Force une mise à jour de l'interface des options
+                        AceConfigRegistry:NotifyChange("MapMate")
+                    end,
+                },
+                enableRank = {
+                    type = "toggle",
+                    name = MapMate_Localize("Display Rank On MM"),
+                    desc = "Enable or disable showing player rank on the minimap.",
+                    order = 2,
+                    get = function() return MapMateDB.showRanksMM end,
+                    set = function(_, value) MapMateDB.showRanksMM = value end,
+                    disabled = function() return not MapMateDB.enableMinimapPin end,
+                },
+                showAsDot = {
+                    type = "toggle",
+                    name = MapMate_Localize("Simple Dots MM"),
+                    desc = "Display players as simple dots on the minimap. Instead of class icons.",
+                    order = 3,
+                    get = function() return MapMateDB.simpleDotsMM end,
+                    set = function(_, value) MapMateDB.simpleDotsMM = value end,
+                    disabled = function() return not MapMateDB.enableMinimapPin end,
+                },
+                MMiconSize = {
+                    type = "range",
+                    name = MapMate_Localize("MMIcon Size"),
+                    desc = "Adjust the size of the icons on the MiniMap.",
+                    order = 4,
+                    min = 0.5,
+                    max = 2.0,
+                    step = 0.1,
+                    get = function() return MapMateDB.MMIconSize end,
+                    set = function(_, value) MapMateDB.MMIconSize = value end,
+                    disabled = function() return not MapMateDB.enableMinimapPin end,
+                },
+            },
+        },
+        layers = {
+            type = "group",
+            name = "Layer Settings",
+            inline = false,
+            order = 4,
+            args = {
+                ignorePlayerOnOtherLayers = {
+                    type = "toggle",
+                    name = "Ignore Players on Other Layers",
+                    desc = "Enable or disable ignoring players on other layers.",
+                    order = 1,
+                    get = function() return MapMateDB.ignorePlayerOnOtherLayers end,
+                    set = function(_, value) MapMateDB.ignorePlayerOnOtherLayers = value end,
+                },
+                showPlayersLayer = {
+                    type = "toggle",
+                    name = "Show Player Layers",
+                    desc = "Enable or disable showing player layers.",
+                    order = 2,
+                    get = function() return MapMateDB.showPlayersLayer end,
+                    set = function(_, value) MapMateDB.showPlayersLayer = value end,
+                },
+                showPlayersLayerTooltip = {
+                    type = "toggle",
+                    name = "Show Layer Tooltips",
+                    desc = "Enable or disable showing tooltips for player layers.",
+                    order = 3,
+                    get = function() return MapMateDB.showPlayersLayerTooltip end,
+                    set = function(_, value) MapMateDB.showPlayersLayerTooltip = value end,
+                },
+            },
+        },
+        reset = {
+            type = "execute",
+            name = "Reset to Defaults",
+            desc = "Reset all settings to their default values.",
+            order = 99, -- Place le bouton à la fin
+            func = function()
+                ResetToDefaults()
+            end,
+        
+        },
+    },
+}
+
+
+AceConfig:RegisterOptionsTable("MapMate", options)
+AceConfigDialog:AddToBlizOptions("MapMate", "|TInterface\\AddOns\\MapMate\\Textures\\GM4:16|t MapMate")
+
+-- Gestion de la fenêtre de configuration personnalisée
+local configFrame
 function MapMateUI:ToggleConfigWindow()
     if configFrame and configFrame:IsShown() then
         configFrame:Hide()
     else
-        self:ShowConfigWindow()
+        MapMateUI:ShowConfigWindow()
+    end
+end
+
+-- Stockage des widgets dépendants
+MapMateUI.widgets = {}
+
+-- Fonction pour mettre à jour l'état des options dépendantes
+local function UpdateDependentOptions()
+    if MapMateUI.widgets.simpleDotsMM then
+        MapMateUI.widgets.simpleDotsMM:SetDisabled(not MapMateDB.enableMinimapPin)
+    end
+    if MapMateUI.widgets.showRanksMM then
+        MapMateUI.widgets.showRanksMM:SetDisabled(not MapMateDB.enableMinimapPin)
+    end
+    if MapMateUI.widgets.MMiconSizeSlider then
+        MapMateUI.widgets.MMiconSizeSlider:SetDisabled(not MapMateDB.enableMinimapPin)
     end
 end
 
@@ -122,7 +373,7 @@ function MapMateUI:ShowConfigWindow()
     end
 
     configFrame = AceGUI:Create("Frame")
-    configFrame:SetTitle(MapMate_Localize("MapMate Parameter"))
+    configFrame:SetTitle("|TInterface\\AddOns\\MapMate\\Textures\\GM4:16|t       MapMate      |TInterface\\AddOns\\MapMate\\Textures\\GM4:16|t")
     configFrame:SetStatusText(MapMate_Localize("Edit Parameters"))
     configFrame:SetCallback("OnClose", function(widget)
         AceGUI:Release(widget)
@@ -131,10 +382,56 @@ function MapMateUI:ShowConfigWindow()
     configFrame:SetLayout("List")
 
     configFrame:SetWidth(400)
-    configFrame:SetHeight(400)
+    configFrame:SetHeight(600)
+
+    -- Ajout d'un séparateur pour le general
+    local titleGHeading = AceGUI:Create("Heading")
+    titleGHeading:SetText(MapMate_Localize("General Settings")) -- ToDo
+    titleGHeading:SetFullWidth(true) -- Le titre occupe toute la largeur
+    configFrame:AddChild(titleGHeading)
+
+    --------------------------------------------------
+    -- Conteneur pour aligner les éléments côte à côte
+    local generalSettingsGroup = AceGUI:Create("SimpleGroup")
+    generalSettingsGroup:SetFullWidth(true)
+    generalSettingsGroup:SetLayout("Flow") -- Permet de disposer les enfants en ligne
+
+    -- Ajout de lockButton
+    local lockButton = AceGUI:Create("CheckBox")
+    lockButton:SetLabel(MapMate_Localize("Icon Lock"))
+    lockButton:SetValue(MapMateDB.lockIcon)
+    lockButton:SetWidth(180) -- Largeur pour contrôler l'espace
+    lockButton:SetCallback("OnValueChanged", function(_, _, value)
+        MapMateDB.lockIcon = value
+        UpdateMinimapButtonLock()
+    end)
+    generalSettingsGroup:AddChild(lockButton)
+
+    -- Ajout de hideButton
+    local hideButton = AceGUI:Create("CheckBox")
+    hideButton:SetLabel(MapMate_Localize("Icon Hide"))
+    hideButton:SetValue(MapMateDB.hideMiniMapButton)
+    hideButton:SetWidth(180) -- Largeur pour contrôler l'espace
+    hideButton:SetCallback("OnValueChanged", function(_, _, value)
+        MapMateDB.hideMiniMapButton = value
+        UpdateMinimapButtonVisibility()
+    end)
+    generalSettingsGroup:AddChild(hideButton)
+    -- Ajouter le conteneur au frame principal
+    configFrame:AddChild(generalSettingsGroup)
+    -- Fin de conteneur
+    ------------------------------------------------------
+
+
+    -- Ajout d'un séparateur pour la map
+    local titleMapHeading = AceGUI:Create("Heading")
+    titleMapHeading:SetText(MapMate_Localize("Map Settings")) -- ToDo
+    titleMapHeading:SetFullWidth(true) -- Le titre occupe toute la largeur
+    configFrame:AddChild(titleMapHeading)
 
     local showRanksCheckbox = AceGUI:Create("CheckBox")
     showRanksCheckbox:SetLabel(MapMate_Localize("Show Guild Member Rank"))
+    showRanksCheckbox:SetFullWidth(true)
     showRanksCheckbox:SetValue(MapMateDB.showRanks)
     showRanksCheckbox:SetCallback("OnValueChanged", function(_, _, value)
         MapMateDB.showRanks = value
@@ -143,6 +440,7 @@ function MapMateUI:ShowConfigWindow()
 
     local simpleDots = AceGUI:Create("CheckBox")
     simpleDots:SetLabel(MapMate_Localize("Simple Dots"))
+    simpleDots:SetFullWidth(true)
     simpleDots:SetValue(MapMateDB.simpleDots)
     simpleDots:SetCallback("OnValueChanged", function(_, _, value)
         MapMateDB.simpleDots = value
@@ -153,6 +451,7 @@ function MapMateUI:ShowConfigWindow()
     local displayLevel = AceGUI:Create("CheckBox")
     displayLevel:SetLabel(MapMate_Localize("Show Guild Member Level"))
     displayLevel:SetValue(MapMateDB.displayLevel)
+    displayLevel:SetFullWidth(true)
     displayLevel:SetCallback("OnValueChanged", function(_, _, value)
         MapMateDB.displayLevel = value
     end)
@@ -176,15 +475,6 @@ function MapMateUI:ShowConfigWindow()
     end)
     configFrame:AddChild(displayHealth)
 
-    local lockButton = AceGUI:Create("CheckBox")
-    lockButton:SetLabel(MapMate_Localize("Icon Lock"))
-    lockButton:SetValue(MapMateDB.lockIcon)
-    lockButton:SetCallback("OnValueChanged", function(_, _, value)
-        MapMateDB.lockIcon = value
-        UpdateMinimapButtonLock() -- Met à jour le statut de verrouillage
-    end)
-    configFrame:AddChild(lockButton)
-
     local iconSizeSlider = AceGUI:Create("Slider")
     iconSizeSlider:SetLabel(MapMate_Localize("Icon Size"))
     iconSizeSlider:SetSliderValues(25, 200, 1)
@@ -193,6 +483,55 @@ function MapMateUI:ShowConfigWindow()
         MapMateDB.iconSize = value / 100
     end)
     configFrame:AddChild(iconSizeSlider)
+
+    -- Ajout d'un séparateur pour la minimap
+    local titleMMHeading = AceGUI:Create("Heading")
+    titleMMHeading:SetText(MapMate_Localize("Minimap Settings")) -- ToDo
+    titleMMHeading:SetFullWidth(true) -- Le titre occupe toute la largeur
+    configFrame:AddChild(titleMMHeading)
+
+
+    -- Checkbox principale pour activer/désactiver les pins de la minimap
+    local enableMinimapPin = AceGUI:Create("CheckBox")
+    enableMinimapPin:SetLabel(MapMate_Localize("Enable Minimap Pins"))
+    enableMinimapPin:SetFullWidth(true)
+    enableMinimapPin:SetValue(MapMateDB.enableMinimapPin)
+    enableMinimapPin:SetCallback("OnValueChanged", function(_, _, value)
+        MapMateDB.enableMinimapPin = value
+        UpdateDependentOptions() -- Met à jour immédiatement les dépendances
+    end)
+    configFrame:AddChild(enableMinimapPin)
+
+    -- Checkbox dépendante
+    local showRanksMM = AceGUI:Create("CheckBox")
+    showRanksMM:SetLabel(MapMate_Localize("Display Rank On MM"))
+    showRanksMM:SetValue(MapMateDB.showRanksMM)
+    showRanksMM:SetFullWidth(true)
+    showRanksMM:SetDisabled(not MapMateDB.enableMinimapPin) -- Initialement désactivée si nécessaire
+    showRanksMM:SetCallback("OnValueChanged", function(_, _, value)
+        MapMateDB.showRanksMM = value
+    end)
+    configFrame:AddChild(showRanksMM)
+
+    local simpleDotsMM = AceGUI:Create("CheckBox")
+    simpleDotsMM:SetLabel(MapMate_Localize("Simple Dots MM"))
+    simpleDotsMM:SetValue(MapMateDB.simpleDotsMM)
+    simpleDotsMM:SetFullWidth(true)
+    simpleDotsMM:SetDisabled(not MapMateDB.enableMinimapPin) -- Initialement désactivée si nécessaire
+    simpleDotsMM:SetCallback("OnValueChanged", function(_, _, value)
+        MapMateDB.simpleDotsMM = value
+    end)
+    configFrame:AddChild(simpleDotsMM)
+
+    local MMiconSizeSlider = AceGUI:Create("Slider")
+    MMiconSizeSlider:SetLabel(MapMate_Localize("MMIcon Size"))
+    MMiconSizeSlider:SetSliderValues(25, 200, 1)
+    MMiconSizeSlider:SetValue(MapMateDB.MMIconSize * 100)
+    MMiconSizeSlider:SetDisabled(not MapMateDB.enableMinimapPin) -- Initialement désactivée si nécessaire
+    MMiconSizeSlider:SetCallback("OnValueChanged", function(_, _, value)
+        MapMateDB.MMIconSize = value / 100
+    end)
+    configFrame:AddChild(MMiconSizeSlider)
 
     -- Ajout d'un séparateur pour les layers
     local titleHeading = AceGUI:Create("Heading")
@@ -233,21 +572,20 @@ function MapMateUI:ShowConfigWindow()
         MapMateDB.showPlayersLayerTooltip = value
     end)
     configFrame:AddChild(showPlayersLayerTooltip)
+
+    MapMateUI.widgets.simpleDotsMM = simpleDotsMM
+    MapMateUI.widgets.MMiconSizeSlider = MMiconSizeSlider
+    MapMateUI.widgets.showRanksMM = showRanksMM
+    UpdateDependentOptions()
 end
 
--- Fonction d'initialisation
-function MapMateUI:Initialize()
+-- Initialisation de l'addon
+local frame = CreateFrame("Frame")
+frame:RegisterEvent("PLAYER_LOGIN")
+frame:SetScript("OnEvent", function()
     InitializeSettings()
     CreateMinimapButton()
-end
-
--- Gestionnaire d'événements
-local frame = CreateFrame("Frame")
-frame:RegisterEvent("ADDON_LOADED")
-frame:SetScript("OnEvent", function(_, _, addonName)
-    if addonName == "MapMate" then
-        MapMateUI:Initialize()
-    end
+    print("MapMate loaded! Use /mapmate to configure options.")
 end)
 
 -- Ajout de la commande /mapmate pour ouvrir la fenêtre de configuration
