@@ -1,6 +1,23 @@
 -- Importation des dépendances globales nécessaires
 local menuFrame -- Référence globale pour le menu contextuel
 local INVITE_PREFIX = "MapMateInvite"
+local leatrixInUse = false
+
+
+local defaultX, defaultY = 0, 0
+local function IsLeatrixMapActive()
+    return _G["LeaMapsDB"] ~= nil
+end
+
+if IsLeatrixMapActive() then
+    defaultX, defaultY = 911, 579
+else
+    defaultX, defaultY = 0.82, 0.067
+end
+
+if not MapMateDB.buttonPosition then
+    MapMateDB.buttonPosition = { x = defaultX, y = defaultY }
+end
 
 local function SendMessageToLayer(layerNumber, message)
     -- Fonction pour envoyer un message à un joueur
@@ -128,8 +145,10 @@ local function UpdateMenuContent(menuFrame)
 
     -- Générer des boutons pour chaque layer unique (non nul)
     local uniqueLayers = {}
+    
     for _, player in pairs(MapMatePlayerList) do
-        if player.layer ~= 0 and not uniqueLayers[player.layer] then
+        print(player.name, player.layer, _G["currentLayer"])
+        if player.layer ~= 0 and not uniqueLayers[player.layer] and player.autoInvit == 1 and _G["currentLayer"] ~= player.layer then
             uniqueLayers[player.layer] = true
         end
     end
@@ -189,28 +208,42 @@ local function ShowCustomContextMenu(anchor)
     menuFrame:Show()
 end
 
-local function Clamp(value, min, max)
-    if value < min then
-        return min
-    elseif value > max then
-        return max
-    else
-        return value
-    end
+local function IsLeatrixMapActive()
+    return _G["LeaMapsDB"] ~= nil
 end
 
--- Fonction pour créer le bouton principal sur la carte
-local function CreateMapButton()
+if IsLeatrixMapActive() then
+    print("Leatrix Maps is active!")
+    leatrixInUse = true
+else
+    print("Leatrix Maps is not active.")
+    leatrixInUse = false
+end
+
+local function CreateMapButtonForDefaultMap()
     local mapButton = CreateFrame("Button", "MapMateMapButton", WorldMapFrame.ScrollContainer, "BackdropTemplate")
-    mapButton:SetSize(40, 40)
+    mapButton:SetSize(30, 30)
     mapButton:SetFrameStrata("HIGH")
     mapButton:SetFrameLevel(WorldMapFrame:GetFrameLevel() + 10)
 
     -- Charger la position enregistrée ou définir une position par défaut
-    local defaultX, defaultY = -10, 20
-    local savedX = MapMateDB.buttonPositionX or defaultX
-    local savedY = MapMateDB.buttonPositionY or defaultY
-    mapButton:SetPoint("BOTTOMLEFT", WorldMapFrame.ScrollContainer, "BOTTOMLEFT", savedX, savedY)
+    local defaultRelativeX, defaultRelativeY = defaultX, defaultY
+    local savedRelativeX = MapMateDB.buttonPosition.x or defaultRelativeX
+    local savedRelativeY = MapMateDB.buttonPosition.y or defaultRelativeY
+
+    -- Fonction pour positionner le bouton
+    local function PositionButton()
+        local containerWidth = WorldMapFrame.ScrollContainer:GetWidth()
+        local containerHeight = WorldMapFrame.ScrollContainer:GetHeight()
+
+        local absoluteX = savedRelativeX * containerWidth
+        local absoluteY = savedRelativeY * containerHeight
+
+        mapButton:ClearAllPoints()
+        mapButton:SetPoint("BOTTOMLEFT", WorldMapFrame.ScrollContainer, "BOTTOMLEFT", absoluteX, absoluteY)
+    end
+
+    PositionButton()
 
     -- Texture principale du bouton
     local buttonTexture = mapButton:CreateTexture(nil, "BACKGROUND")
@@ -221,7 +254,7 @@ local function CreateMapButton()
 
     -- Ajouter une texture par-dessus le bouton
     local overlayTexture = mapButton:CreateTexture(nil, "OVERLAY")
-    overlayTexture:SetSize(40, 40)
+    overlayTexture:SetSize(30, 30)
     overlayTexture:SetPoint("CENTER", mapButton, "CENTER", 0, 0)
     overlayTexture:SetTexture("Interface\\AddOns\\MapMate\\Textures\\forbidden")
     overlayTexture:SetAlpha(1)
@@ -254,34 +287,37 @@ local function CreateMapButton()
             isBeingDragged = true
         end
     end)
-    
+
     mapButton:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
-    
-        local relativeX = self:GetLeft() - WorldMapFrame.ScrollContainer:GetLeft()
-        local relativeY = self:GetBottom() - WorldMapFrame.ScrollContainer:GetBottom()
-    
-        self:ClearAllPoints()
-        self:SetPoint("BOTTOMLEFT", WorldMapFrame.ScrollContainer, "BOTTOMLEFT", relativeX, relativeY)
-    
-        MapMateDB.buttonPositionX = relativeX
-        MapMateDB.buttonPositionY = relativeY
-    
-        print("Button moved to: ", relativeX, relativeY)
+        isBeingDragged = false
+
+        local containerWidth = WorldMapFrame.ScrollContainer:GetWidth()
+        local containerHeight = WorldMapFrame.ScrollContainer:GetHeight()
+
+        -- Calcul des coordonnées relatives après déplacement
+        local absoluteX = self:GetLeft() - WorldMapFrame.ScrollContainer:GetLeft()
+        local absoluteY = self:GetBottom() - WorldMapFrame.ScrollContainer:GetBottom()
+        savedRelativeX = absoluteX / containerWidth
+        savedRelativeY = absoluteY / containerHeight
+
+        -- Sauvegarder les coordonnées relatives
+        MapMateDB.buttonPosition.x = savedRelativeX
+        MapMateDB.buttonPosition.y = savedRelativeY
+
+        print("Button moved to relative position: ", savedRelativeX, savedRelativeY)
+        PositionButton()
     end)
 
     -- Synchroniser la position avec la carte uniquement si le bouton n'est pas en train d'être déplacé
     local function UpdateButtonPosition()
         if not isBeingDragged then
-            local savedX = MapMateDB.buttonPositionX or defaultX
-            local savedY = MapMateDB.buttonPositionY or defaultY
-            mapButton:ClearAllPoints()
-            mapButton:SetPoint("BOTTOMLEFT", WorldMapFrame.ScrollContainer, "BOTTOMLEFT", savedX, savedY)
+            PositionButton()
         end
     end
 
     -- Attacher l'événement de mise à jour à la carte
-    WorldMapFrame.ScrollContainer:HookScript("OnUpdate", UpdateButtonPosition)
+    WorldMapFrame.ScrollContainer:HookScript("OnSizeChanged", UpdateButtonPosition)
 
     -- Ajouter les clics gauche et droit
     mapButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -314,6 +350,124 @@ local function CreateMapButton()
     UpdateButtonState()
 end
 
+-- Fonction pour créer le bouton principal sur la carte
+local function CreateMapButton()
+    if leatrixInUse then
+        local mapButton = CreateFrame("Button", "MapMateMapButton", WorldMapFrame.ScrollContainer, "BackdropTemplate")
+        mapButton:SetSize(40, 40)
+        mapButton:SetFrameStrata("HIGH")
+        mapButton:SetFrameLevel(WorldMapFrame:GetFrameLevel() + 10)
+
+        -- Charger la position enregistrée ou définir une position par défaut
+        local savedX = MapMateDB.buttonPosition.x or defaultX
+        local savedY = MapMateDB.buttonPosition.y or defaultY
+        mapButton:SetPoint("BOTTOMLEFT", WorldMapFrame.ScrollContainer, "BOTTOMLEFT", savedX, savedY)
+
+        -- Texture principale du bouton
+        local buttonTexture = mapButton:CreateTexture(nil, "BACKGROUND")
+        buttonTexture:SetAllPoints()
+        buttonTexture:SetVertexColor(1, 1, 1, 1)
+        buttonTexture:SetTexture("Interface\\Icons\\INV_Misc_Map02")
+        mapButton.texture = buttonTexture
+
+        -- Ajouter une texture par-dessus le bouton
+        local overlayTexture = mapButton:CreateTexture(nil, "OVERLAY")
+        overlayTexture:SetSize(40, 40)
+        overlayTexture:SetPoint("CENTER", mapButton, "CENTER", 0, 0)
+        overlayTexture:SetTexture("Interface\\AddOns\\MapMate\\Textures\\forbidden")
+        overlayTexture:SetAlpha(1)
+
+        mapButton:SetBackdrop({
+            bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+            edgeSize = 12,
+        })
+        mapButton:SetBackdropColor(0, 0, 0, 1)
+
+        -- Fonction pour mettre à jour l'état du bouton
+        local function UpdateButtonState()
+            if MapMateDB.showPlayersOnMap then
+                overlayTexture:Hide()
+            else
+                overlayTexture:Show()
+            end
+        end
+
+        -- Activer le déplacement avec Shift
+        local isBeingDragged = false
+        mapButton:SetMovable(true)
+        mapButton:EnableMouse(true)
+        mapButton:RegisterForDrag("LeftButton")
+
+        mapButton:SetScript("OnDragStart", function(self)
+            if IsShiftKeyDown() then
+                self:StartMoving()
+                isBeingDragged = true
+            end
+        end)
+        
+        mapButton:SetScript("OnDragStop", function(self)
+            self:StopMovingOrSizing()
+        
+            local relativeX = self:GetLeft() - WorldMapFrame.ScrollContainer:GetLeft()
+            local relativeY = self:GetBottom() - WorldMapFrame.ScrollContainer:GetBottom()
+        
+            self:ClearAllPoints()
+            self:SetPoint("BOTTOMLEFT", WorldMapFrame.ScrollContainer, "BOTTOMLEFT", relativeX, relativeY)
+        
+            MapMateDB.buttonPosition.x = relativeX
+            MapMateDB.buttonPosition.y = relativeY
+        
+            print("Button moved to: ", relativeX, relativeY)
+        end)
+
+        -- Synchroniser la position avec la carte uniquement si le bouton n'est pas en train d'être déplacé
+        local function UpdateButtonPosition()
+            if not isBeingDragged then
+                local savedX = MapMateDB.buttonPosition.x or defaultX
+                local savedY = MapMateDB.buttonPosition.y or defaultY
+                mapButton:ClearAllPoints()
+                mapButton:SetPoint("BOTTOMLEFT", WorldMapFrame.ScrollContainer, "BOTTOMLEFT", savedX, savedY)
+            end
+        end
+
+        -- Attacher l'événement de mise à jour à la carte
+        WorldMapFrame.ScrollContainer:HookScript("OnUpdate", UpdateButtonPosition)
+
+        -- Ajouter les clics gauche et droit
+        mapButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        mapButton:SetScript("OnClick", function(self, button)
+            if button == "LeftButton" then
+                MapMateDB.showPlayersOnMap = not MapMateDB.showPlayersOnMap
+                UpdateButtonState()
+                print(MapMateDB.showPlayersOnMap and "Players shown on the map" or "Players hidden from the map")
+            elseif button == "RightButton" then
+                ShowCustomContextMenu(mapButton)
+            end
+        end)
+
+        -- Tooltip pour le bouton
+        mapButton:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:ClearLines()
+            GameTooltip:AddLine("MapMate Map Button", 1, 1, 1)
+            GameTooltip:AddLine("Left Click: Toggle player visibility", 0.8, 0.8, 0.8)
+            GameTooltip:AddLine("Right Click: Show options", 0.8, 0.8, 0.8)
+            GameTooltip:AddLine("Shift + Drag: Move button", 0.8, 0.8, 0.8)
+            GameTooltip:Show()
+        end)
+
+        mapButton:SetScript("OnLeave", function()
+            GameTooltip:Hide()
+        end)
+
+        -- Mettre à jour l'état initial du bouton
+        UpdateButtonState()
+    else
+        CreateMapButtonForDefaultMap()
+    end
+end
+
 
 
 
@@ -332,24 +486,3 @@ frame:SetScript("OnEvent", function(_, _, addon)
         CreateMapButton()
     end
 end)
-
-
-
-------------------------------------------
-
-
--- local function PrintPlayerList()
---     local playerList = _G["MapMatePlayerList"]
-    
---     if not playerList then
---         print("Player list is not initialized.")
---         return
---     end
-
---     for _, player in ipairs(playerList) do
---         print("Name:", player.name, "| Layer:", player.layer)
---     end
--- end
-
-
--- C_Timer.NewTicker(5, PrintPlayerList)

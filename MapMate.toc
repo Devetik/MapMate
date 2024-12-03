@@ -4,7 +4,7 @@
 ## Notes: Addon permettant de voir les membres de la guilde sur la map
 ## SavedVariables: MapMateDB
 ## Notes: Localization for MapMate addon.
-## Version: 1.5.0
+## Version: 1.6.0
 
 # Librairies
 libs/Ace3/LibStub/LibStub.lua

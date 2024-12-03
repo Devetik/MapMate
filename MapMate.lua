@@ -8,7 +8,7 @@ local waypoints = MapMate.waypoints or {}
 MapMate.waypoints = waypoints
 local pins = {} -- Table pour stocker les pins
 local guildMembers = {} -- Table pour stocker les informations des membres de la guilde
-local currentLayer = 0
+_G["currentLayer"] = 0
 
 -- Chargement de la bibliothèque HereBeDragons
 local HBD = LibStub("HereBeDragons-2.0")
@@ -218,7 +218,9 @@ function MapMate:SendGuildPosition()
                     local _, classFileName = UnitClass("player")
                     local class = classFileName
                     local playerHealthPercent = math.floor(UnitHealth("player") / UnitHealthMax("player") * 100)
-                    local message = string.format("%s,%s,%d,%s,%.3f,%.3f,%d,%d,%d", name, playerRank, level, class, x, y, mapID, playerHealthPercent, currentLayer)
+                    local autoInvitEnabled = MapMateDB.autoInviteForLayer and 1 or 0
+                    local message = string.format("%s,%s,%d,%s,%.3f,%.3f,%d,%d,%d,%d", name, playerRank, level, class, x, y, mapID, playerHealthPercent, currentLayer, autoInvitEnabled)
+
                     C_ChatInfo.SendAddonMessage(ADDON_PREFIX, message, "GUILD")
                     lastSentPosition = { x = x, y = y, mapID = mapID }
                     timeSinceLastUpdate = 0
@@ -284,7 +286,7 @@ local function OnAddonMessage(prefix, text, channel, sender)
     end
     if prefix == ADDON_PREFIX and not IsSelf(sender) and channel == "GUILD" then
         -- Décomposer le message en valeurs individuelles
-        local name, rank, level, class, x, y, mapID, healthPercent, layer = strsplit(",", text)
+        local name, rank, level, class, x, y, mapID, healthPercent, layer, autoInvit = strsplit(",", text)
 
         -- Vérifications et conversions
         name = type(name) == "string" and name or "Unknown"
@@ -296,6 +298,7 @@ local function OnAddonMessage(prefix, text, channel, sender)
         mapID = tonumber(mapID) or 0 -- Par défaut, 0
         healthPercent = tonumber(healthPercent) or 100
         layer = tonumber(layer) or 0
+        autoInvit = tonumber(autoInvit) or 0
 
         -- Vérifie que les coordonnées sont dans des plages acceptables (0-1 pour x et y)
         if x < 0 or x > 1 then x = 0 end
@@ -316,6 +319,7 @@ local function OnAddonMessage(prefix, text, channel, sender)
                     player.mapID = mapID
                     player.healthPercent = healthPercent
                     player.layer = layer
+                    player.autoInvit = autoInvit
                 end
                 break
             end
@@ -333,6 +337,7 @@ local function OnAddonMessage(prefix, text, channel, sender)
                 mapID = mapID,
                 healthPercent = healthPercent,
                 layer = layer,
+                autoInvit = autoInvit,
             })
         end
 

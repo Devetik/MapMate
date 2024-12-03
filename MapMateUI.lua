@@ -10,6 +10,20 @@ _G["MapMateUI"] = MapMateUI
 if not MapMateDB then
     MapMateDB = {}
 end
+local defaultX, defaultY = 0, 0
+local function IsLeatrixMapActive()
+    return _G["LeaMapsDB"] ~= nil
+end
+
+if IsLeatrixMapActive() then
+    defaultX, defaultY = 911, 579
+else
+    defaultX, defaultY = 0.82, 0.067
+end
+
+if not MapMateDB.buttonPosition then
+    MapMateDB.buttonPosition = { x = defaultX, y = defaultY }
+end
 
 -- Paramètres par défaut
 local defaults = {
@@ -30,7 +44,8 @@ local defaults = {
     showRanksMM = true,
     showPlayersOnMap = true,
     autoInviteForLayer = true,
-    minimap = { x = -70, y = 0, hide = false }
+    minimap = { x = -70, y = 0, hide = false },
+    buttonPosition = { x = defaultX, y = defaultY },
 }
 
 -- Initialisation des paramètres sauvegardés
@@ -87,6 +102,9 @@ local function CreateMinimapButton()
             print("Right-click on the MapMate icon.")
         end
     end)
+    
+    -- Ajoutez cette ligne pour enregistrer les clics gauche et droit
+    minimapButton:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 
     minimapButton:RegisterForDrag("LeftButton")
     minimapButton:SetScript("OnDragStart", function(self)
@@ -136,6 +154,9 @@ local function ResetToDefaults()
     -- Réinitialiser la position du bouton
     MapMateDB.minimap.x = defaults.minimap.x
     MapMateDB.minimap.y = defaults.minimap.y
+
+    MapMateDB.buttonPosition.x = defaults.buttonPosition.x
+    MapMateDB.buttonPosition.y = defaults.buttonPosition.y
 
     -- Appliquer les changements
     UpdateMinimapButtonLock()
