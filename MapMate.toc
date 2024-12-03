@@ -37,6 +37,7 @@ libs/HereBeDragons/HereBeDragons-Migrate.lua
 Localization/localization.lua
 MapMateUI.lua
 MapMate.lua
+MapMateJoinLayer.lua
 
 # Localization Files
 

@@ -160,6 +160,7 @@ C_GuildInfo.GuildRoster()
 
 -- Préfixe unique pour l'addon
 local ADDON_PREFIX = "MapMate"
+local INVITE_PREFIX = "MapMateInvite"
 
 if playerRank == nil then
     -- Parcours des membres de la guilde pour trouver le rang
@@ -178,6 +179,7 @@ end
 
 -- Inscription du préfixe pour la communication addon
 C_ChatInfo.RegisterAddonMessagePrefix(ADDON_PREFIX)
+C_ChatInfo.RegisterAddonMessagePrefix(INVITE_PREFIX)
 
 -- Fonction pour envoyer la position via Addon Message
 function MapMate:SendGuildPosition()
@@ -235,9 +237,52 @@ local function IsSelf(sender)
     return sender == fullPlayerName
 end
 
+local function TemporarilyMuteSound()
+    -- Sauvegarder le volume actuel des effets sonores
+    local originalVolume = GetCVar("Sound_EnableSFX")
+
+    -- Désactiver les sons
+    SetCVar("Sound_EnableSFX", "0")
+
+    -- Remettre les sons après un court délai
+    C_Timer.After(2, function()
+        SetCVar("Sound_EnableSFX", originalVolume)
+    end)
+end
+
 -- Fonction pour traiter les messages reçus via Addon Message
+-- Initialiser une table pour stocker les joueurs
+local playerList = {}
+-- Rendre la liste globale pour qu'elle soit accessible depuis d'autres fichiers
+_G["MapMatePlayerList"] = playerList
+
+-- Fonction pour gérer les messages de l'addon
 local function OnAddonMessage(prefix, text, channel, sender)
-    if prefix == ADDON_PREFIX and not IsSelf(sender) then
+
+    if prefix == INVITE_PREFIX then
+
+        if not MapMateDB.autoInviteForLayer then
+            local responseMessage = "NO" 
+            C_ChatInfo.SendAddonMessage(INVITE_PREFIX, responseMessage, "WHISPER", sender)
+            return
+        end
+
+        if IsInGroup() and not UnitIsGroupLeader("player") then
+            local responseMessage = "NOCHIEF" 
+            C_ChatInfo.SendAddonMessage(INVITE_PREFIX, responseMessage, "WHISPER", sender)
+            return
+        end
+        
+        if text == "MapMateInvite" then
+            TemporarilyMuteSound()
+            InviteUnit(sender)
+        
+            -- Répondre à l'expéditeur
+            local responseMessage = "OK"
+            C_ChatInfo.SendAddonMessage(INVITE_PREFIX, responseMessage, "WHISPER", sender)
+        end
+    end
+    if prefix == ADDON_PREFIX and not IsSelf(sender) and channel == "GUILD" then
         -- Décomposer le message en valeurs individuelles
         local name, rank, level, class, x, y, mapID, healthPercent, layer = strsplit(",", text)
 
@@ -256,10 +301,46 @@ local function OnAddonMessage(prefix, text, channel, sender)
         if x < 0 or x > 1 then x = 0 end
         if y < 0 or y > 1 then y = 0 end
 
-        -- Créer le pin sur la carte pour ce membre
+        -- Vérifier si le joueur est déjà dans la liste
+        local playerExists = false
+        for _, player in ipairs(playerList) do
+            if player.name == name then
+                playerExists = true
+                -- Si le layer a changé ou les informations diffèrent, mettre à jour
+                if player.layer ~= layer then
+                    player.rank = rank
+                    player.level = level
+                    player.class = class
+                    player.x = x
+                    player.y = y
+                    player.mapID = mapID
+                    player.healthPercent = healthPercent
+                    player.layer = layer
+                end
+                break
+            end
+        end
+
+        -- Si le joueur n'existe pas, l'ajouter à la liste
+        if not playerExists then
+            table.insert(playerList, {
+                name = name,
+                rank = rank,
+                level = level,
+                class = class,
+                x = x,
+                y = y,
+                mapID = mapID,
+                healthPercent = healthPercent,
+                layer = layer,
+            })
+        end
+
+        -- Créer ou mettre à jour le pin sur la carte pour ce membre
         MapMate:AddWaypoint(mapID, x, y, name, healthPercent, rank, level, class, layer)
     end
 end
+
 
 -- Gestion des événements
 local frame = CreateFrame("Frame")
@@ -350,6 +431,10 @@ function MapMate:CreateMapPin(waypoint, healthPercent, rank, targetLevel, classN
             HBDPins:RemoveMinimapIcon("MapMate", pins[waypoint].minimap)
         end
         pins[waypoint] = nil
+    end
+
+    if not MapMateDB.showPlayersOnMap then
+        return
     end
 
     -- Ignore les joueurs sur d'autres layers
@@ -583,6 +668,14 @@ local function UpdateGuildRoster()
     for name, wasOnline in pairs(previousRoster) do
         if wasOnline and not currentRoster[name] then
             MapMate:RemovePinsByTitle(Ambiguate(name, "short"))
+            -- Supprime le joueur de la liste
+            for i = #playerList, 1, -1 do
+                if playerList[i].name == name then
+                    table.remove(playerList, i)
+                    print("Removed player from list:", name)
+                    break
+                end
+            end
         end
     end
 

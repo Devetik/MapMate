@@ -28,6 +28,8 @@ local defaults = {
     MMIconSize = 1.0,
     simpleDotsMM = false,
     showRanksMM = true,
+    showPlayersOnMap = true,
+    autoInviteForLayer = true,
     minimap = { x = -70, y = 0, hide = false }
 }
 

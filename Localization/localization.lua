@@ -33,7 +33,7 @@ L["Enable Minimap Pins"] = "Enable Minimap Pins"
 if locale == "frFR" then
     L["MapMate"] = "MapMate"
     L["Welcome to MapMate!"] = "Bienvenue sur MapMate !"
-    L["Show Guild Member Rank"] = "Afficher du rang des membres de la guilde"
+    L["Show Guild Member Rank"] = "Afficher le rang des membres de la guilde"
     L["Show Guild Member Level"] = "Afficher le niveau des membres de la guilde"
     L["Icon Lock"] = "Verrouiller le bouton"
     L["Icon Hide"] = "Cacher le bouton"
@@ -54,7 +54,7 @@ if locale == "frFR" then
     L["disableMinimapPin"] = "Désactiver les icones sur la mini-map"
     L["MMIcon Size"] = "MiniMap Icon Size (%)"
     L["Simple Dots MM"] = "Afficher les joueurs sous forme de points sur la mini-map"
-    L["Display Rank On MM"] = "Affiche les rangs sur la mini-map"
+    L["Display Rank On MM"] = "Afficher les rangs sur la mini-map"
     L["Enable Minimap Pins"] = "Activer l'affichage  sur la mini-map"
 end
 
